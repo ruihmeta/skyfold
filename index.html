@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0a1020">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="TILT//LAB">
+  <meta name="description" content="Tilt your phone to guide a luminous marble through a pocket labyrinth.">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icon.svg">
+  <link rel="stylesheet" href="./styles.css">
+  <title>TILT//LAB</title>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="brand" aria-label="Tilt Lab">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div>
+          <strong>TILT<span>//</span>LAB</strong>
+          <small>POCKET LABYRINTH 01</small>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button id="soundButton" class="icon-button" aria-label="Toggle sound" title="Toggle sound">◉</button>
+        <button id="installButton" class="compact-button" hidden>INSTALL</button>
+      </div>
+    </header>
+
+    <section class="status-row" aria-label="Game status">
+      <div><small>RUN</small><strong id="timer">00:00.0</strong></div>
+      <div class="status-center"><span id="sensorDot" class="status-dot"></span><strong id="sensorStatus">WAITING</strong></div>
+      <div><small>CELLS</small><strong id="pickupCount">0 / 3</strong></div>
+    </section>
+
+    <section id="gameFrame" class="game-frame">
+      <canvas id="gameCanvas" aria-label="Tilt-controlled marble maze"></canvas>
+      <div class="scanlines" aria-hidden="true"></div>
+
+      <div id="startPanel" class="modal-panel active" role="dialog" aria-modal="true" aria-labelledby="startTitle">
+        <div class="gyro-glyph" aria-hidden="true"><i></i><i></i><b></b></div>
+        <p class="eyebrow">MOTION INPUT REQUIRED</p>
+        <h1 id="startTitle">Hold level.<br>Find the portal.</h1>
+        <p>Tilt your phone to roll. Collect cyan cells, avoid gravity wells, and reach the gold portal.</p>
+        <button id="startButton" class="primary-button">ENABLE TILT &amp; PLAY</button>
+        <button id="touchButton" class="text-button">USE TOUCH CONTROLS</button>
+        <small class="permission-note">On iPhone, Safari will ask for motion access after you tap.</small>
+      </div>
+
+      <div id="winPanel" class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="winTitle">
+        <p class="eyebrow">PORTAL STABILIZED</p>
+        <h2 id="winTitle">Run complete</h2>
+        <div class="result-time" id="resultTime">00:00.0</div>
+        <p id="resultCopy">All energy cells recovered.</p>
+        <button id="nextButton" class="primary-button">NEXT LABYRINTH</button>
+        <button id="retryButton" class="text-button">REPLAY THIS ONE</button>
+      </div>
+
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+      <div id="joystick" class="joystick" aria-hidden="true"><span></span></div>
+    </section>
+
+    <footer class="control-deck">
+      <button id="calibrateButton" class="deck-button"><span>⌖</span><b>RE-CENTER</b><small>Hold naturally</small></button>
+      <div class="tilt-meter" aria-label="Current tilt">
+        <span id="tiltMarker"></span>
+        <i></i><i></i>
+      </div>
+      <button id="resetButton" class="deck-button"><span>↺</span><b>RESET</b><small>Same maze</small></button>
+    </footer>
+
+    <p class="desktop-hint">No motion sensor? Drag on the board or use arrow keys.</p>
+  </main>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
