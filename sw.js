@@ -1,10 +1,12 @@
-const CACHE_NAME = "tilt-lab-v1";
+const CACHE_NAME = "tilt-lab-v3";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
   "./physics.js",
+  "./vendor/three.module.min.js",
+  "./vendor/three.core.min.js",
   "./manifest.webmanifest",
   "./icon.svg"
 ];

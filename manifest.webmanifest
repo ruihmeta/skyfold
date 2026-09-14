@@ -1,14 +1,14 @@
 {
   "name": "TILT//LAB — Pocket Labyrinth",
   "short_name": "TILT//LAB",
-  "description": "A phone-tilt marble labyrinth built as a tiny installable PWA.",
+  "description": "A physical 3D wood-and-steel labyrinth controlled by phone tilt.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#05070d",
-  "theme_color": "#0a1020",
+  "background_color": "#140c07",
+  "theme_color": "#2a180e",
   "categories": ["games"],
   "icons": [
     {

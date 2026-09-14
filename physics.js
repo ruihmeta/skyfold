@@ -1,4 +1,15 @@
 export const WORLD = Object.freeze({ width: 360, height: 600 });
+export const BALL_RADIUS = 8.5;
+export const PHYSICS = Object.freeze({
+  gravity: 9.80665,
+  solidSphereFactor: 5 / 7,
+  pixelsPerMeter: 460,
+  rollingResistance: 0.017,
+  airDrag: 0.00034,
+  restitution: 0.28,
+  wallFriction: 0.055,
+  wallHeight: 17
+});
 
 export function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -19,7 +30,7 @@ function cellIndex(col, row, cols) {
   return row * cols + col;
 }
 
-export function createMaze(seed = 0x71a6, cols = 6, rows = 10) {
+function carveMaze(seed, cols, rows) {
   const random = seededRandom(seed);
   const cells = Array.from({ length: cols * rows }, (_, index) => ({
     col: index % cols,
@@ -28,7 +39,6 @@ export function createMaze(seed = 0x71a6, cols = 6, rows = 10) {
     visited: false
   }));
   const startIndex = cellIndex(0, rows - 1, cols);
-  const goalIndex = cellIndex(cols - 1, 0, cols);
   const stack = [startIndex];
   cells[startIndex].visited = true;
   const directions = [
@@ -46,12 +56,10 @@ export function createMaze(seed = 0x71a6, cols = 6, rows = 10) {
       const row = current.row + dr;
       return col >= 0 && col < cols && row >= 0 && row < rows && !cells[cellIndex(col, row, cols)].visited;
     });
-
     if (!available.length) {
       stack.pop();
       continue;
     }
-
     const direction = available[Math.floor(random() * available.length)];
     const nextIndex = cellIndex(current.col + direction.dc, current.row + direction.dr, cols);
     current.walls[direction.wall] = false;
@@ -61,26 +69,48 @@ export function createMaze(seed = 0x71a6, cols = 6, rows = 10) {
   }
 
   for (const cell of cells) delete cell.visited;
+  return cells;
+}
 
-  const solution = findPath(cells, cols, rows, startIndex, goalIndex);
+function countTurns(solution, cells) {
+  let turns = 0;
+  for (let index = 1; index < solution.length - 1; index += 1) {
+    const previous = cells[solution[index - 1]];
+    const current = cells[solution[index]];
+    const next = cells[solution[index + 1]];
+    const first = [current.col - previous.col, current.row - previous.row];
+    const second = [next.col - current.col, next.row - current.row];
+    if (first[0] !== second[0] || first[1] !== second[1]) turns += 1;
+  }
+  return turns;
+}
+
+export function createMaze(seed = 0x71a6, cols = 7, rows = 11) {
+  const startIndex = cellIndex(0, rows - 1, cols);
+  const goalIndex = cellIndex(cols - 1, 0, cols);
+  let best = null;
+
+  for (let attempt = 0; attempt < 96; attempt += 1) {
+    const attemptSeed = seed + attempt * 7919;
+    const cells = carveMaze(attemptSeed, cols, rows);
+    const solution = findPath(cells, cols, rows, startIndex, goalIndex);
+    const turns = countTurns(solution, cells);
+    const score = solution.length + turns * 1.8;
+    if (!best || score > best.score) best = { cells, solution, turns, score, attemptSeed };
+    if (solution.length >= Math.floor(cols * rows * 0.48) && turns >= 12) break;
+  }
+
+  const { cells, solution, turns, attemptSeed } = best;
   const cellWidth = WORLD.width / cols;
   const cellHeight = WORLD.height / rows;
   const center = (index) => ({
     x: (cells[index].col + 0.5) * cellWidth,
     y: (cells[index].row + 0.5) * cellHeight
   });
-  const solutionSet = new Set(solution);
-  const hazardCandidates = cells
-    .map((_, index) => index)
-    .filter((index) => !solutionSet.has(index) && index !== startIndex && index !== goalIndex)
-    .sort(() => random() - 0.5)
-    .slice(0, 3);
-  const pickupIndices = [0.25, 0.5, 0.75]
-    .map((ratio) => solution[Math.floor((solution.length - 1) * ratio)])
-    .filter((index, position, values) => index !== startIndex && index !== goalIndex && values.indexOf(index) === position);
 
+  const hazards = placeRouteHazards(solution, cells, cellWidth, cellHeight, seed);
   return {
-    seed,
+    seed: attemptSeed,
     cols,
     rows,
     cells,
@@ -90,8 +120,10 @@ export function createMaze(seed = 0x71a6, cols = 6, rows = 10) {
     start: center(startIndex),
     goal: center(goalIndex),
     solution,
-    hazards: hazardCandidates.map((index) => ({ ...center(index), radius: 15 })),
-    pickups: pickupIndices.map((index, id) => ({ id, ...center(index), collected: false }))
+    turns,
+    hazards,
+    gaps: placeRouteGaps(solution, cells, cellWidth, cellHeight, hazards),
+    challengeScore: solution.length + turns * 2
   };
 }
 
@@ -124,7 +156,100 @@ export function findPath(cells, cols, rows, startIndex, goalIndex) {
   return path.reverse();
 }
 
-export function buildWallRects(cells, cols, rows, thickness = 7) {
+export function placeRouteHazards(solution, cells, cellWidth, cellHeight, seed) {
+  const candidates = [];
+  for (let pathIndex = 3; pathIndex < solution.length - 3; pathIndex += 1) {
+    const previous = cells[solution[pathIndex - 1]];
+    const current = cells[solution[pathIndex]];
+    const next = cells[solution[pathIndex + 1]];
+    const incoming = { x: current.col - previous.col, y: current.row - previous.row };
+    const outgoing = { x: next.col - current.col, y: next.row - current.row };
+    const isTurn = incoming.x !== outgoing.x || incoming.y !== outgoing.y;
+    candidates.push({ pathIndex, current, incoming, outgoing, isTurn });
+  }
+
+  const random = seededRandom(seed ^ 0xa53f19);
+  const targetCount = Math.min(11, Math.max(7, Math.floor(solution.length / 4.6)));
+  const selected = [];
+  for (let slot = 0; slot < targetCount; slot += 1) {
+    const target = 3 + (solution.length - 7) * ((slot + 0.55) / targetCount);
+    const eligible = candidates
+      .filter((candidate) => !selected.some((item) => Math.abs(item.pathIndex - candidate.pathIndex) < 2))
+      .sort((a, b) => {
+        const aScore = Math.abs(a.pathIndex - target) - (a.isTurn ? 1.6 : 0) + random() * 0.08;
+        const bScore = Math.abs(b.pathIndex - target) - (b.isTurn ? 1.6 : 0) + random() * 0.08;
+        return aScore - bScore;
+      });
+    if (eligible[0]) selected.push(eligible[0]);
+  }
+
+  return selected
+    .sort((a, b) => a.pathIndex - b.pathIndex)
+    .map((candidate, index) => {
+      let offsetX;
+      let offsetY;
+      if (candidate.isTurn) {
+        const length = Math.hypot(
+          candidate.incoming.x + candidate.outgoing.x,
+          candidate.incoming.y + candidate.outgoing.y
+        ) || 1;
+        offsetX = (candidate.incoming.x + candidate.outgoing.x) / length;
+        offsetY = (candidate.incoming.y + candidate.outgoing.y) / length;
+      } else {
+        const sign = index % 2 === 0 ? 1 : -1;
+        offsetX = -candidate.incoming.y * sign;
+        offsetY = candidate.incoming.x * sign;
+      }
+      const offset = Math.min(cellWidth, cellHeight) * (candidate.isTurn ? 0.17 : 0.2);
+      return {
+        id: index + 1,
+        pathIndex: candidate.pathIndex,
+        type: candidate.isTurn ? "corner" : "chicane",
+        x: (candidate.current.col + 0.5) * cellWidth + offsetX * offset,
+        y: (candidate.current.row + 0.5) * cellHeight + offsetY * offset,
+        radius: 12.5
+      };
+    });
+}
+
+export function placeRouteGaps(solution, cells, cellWidth, cellHeight, hazards) {
+  const selected = [];
+  for (const ratio of [.34, .7]) {
+    const target = Math.round(solution.length * ratio);
+    const candidates = [];
+    for (let pathIndex = 4; pathIndex < solution.length - 4; pathIndex += 1) {
+      const previous = cells[solution[pathIndex - 1]];
+      const current = cells[solution[pathIndex]];
+      const next = cells[solution[pathIndex + 1]];
+      const incoming = { x: current.col - previous.col, y: current.row - previous.row };
+      const outgoing = { x: next.col - current.col, y: next.row - current.row };
+      const straight = incoming.x === outgoing.x && incoming.y === outgoing.y;
+      const clearOfHole = hazards.every((hazard) => Math.abs(hazard.pathIndex - pathIndex) >= 2);
+      const clearOfGap = selected.every((gap) => Math.abs(gap.pathIndex - pathIndex) >= 5);
+      if (straight && clearOfHole && clearOfGap) candidates.push({ pathIndex, current, incoming });
+    }
+    candidates.sort((a, b) => Math.abs(a.pathIndex - target) - Math.abs(b.pathIndex - target));
+    if (candidates[0]) selected.push(candidates[0]);
+  }
+
+  return selected
+    .sort((a, b) => a.pathIndex - b.pathIndex)
+    .map((candidate, index) => {
+      const verticalTravel = candidate.incoming.y !== 0;
+      const width = verticalTravel ? cellWidth - 9 : 16;
+      const height = verticalTravel ? 16 : cellHeight - 9;
+      return {
+        id: index + 1,
+        pathIndex: candidate.pathIndex,
+        x: (candidate.current.col + .5) * cellWidth - width / 2,
+        y: (candidate.current.row + .5) * cellHeight - height / 2,
+        width,
+        height
+      };
+    });
+}
+
+export function buildWallRects(cells, cols, rows, thickness = 6.5) {
   const cellWidth = WORLD.width / cols;
   const cellHeight = WORLD.height / rows;
   const walls = [];
@@ -147,12 +272,25 @@ export function buildWallRects(cells, cols, rows, thickness = 7) {
   return walls;
 }
 
-export function resolveCircleRect(ball, radius, rect, bounce = 0.3) {
+export function gravityFromAngles(betaDegrees, gammaDegrees, screenAngle = 0) {
+  const beta = betaDegrees * Math.PI / 180;
+  const gamma = gammaDegrees * Math.PI / 180;
+  let x = Math.sin(gamma) * Math.cos(beta);
+  let y = Math.sin(beta);
+  const z = Math.cos(beta) * Math.cos(gamma);
+  const angle = ((screenAngle % 360) + 360) % 360;
+  if (angle === 90) [x, y] = [y, -x];
+  if (angle === 270) [x, y] = [-y, x];
+  if (angle === 180) [x, y] = [-x, -y];
+  return { x, y, z };
+}
+
+export function resolveCircleRect(ball, radius, rect, restitution = PHYSICS.restitution) {
   const nearestX = clamp(ball.x, rect.x, rect.x + rect.width);
   const nearestY = clamp(ball.y, rect.y, rect.y + rect.height);
   let dx = ball.x - nearestX;
   let dy = ball.y - nearestY;
-  let distanceSquared = dx * dx + dy * dy;
+  const distanceSquared = dx * dx + dy * dy;
   if (distanceSquared >= radius * radius) return 0;
 
   let normalX;
@@ -179,29 +317,61 @@ export function resolveCircleRect(ball, radius, rect, bounce = 0.3) {
   ball.y += normalY * overlap;
   const normalVelocity = ball.vx * normalX + ball.vy * normalY;
   if (normalVelocity < 0) {
-    ball.vx -= (1 + bounce) * normalVelocity * normalX;
-    ball.vy -= (1 + bounce) * normalVelocity * normalY;
+    ball.vx -= (1 + restitution) * normalVelocity * normalX;
+    ball.vy -= (1 + restitution) * normalVelocity * normalY;
+    const tangentX = -normalY;
+    const tangentY = normalX;
+    const tangentVelocity = ball.vx * tangentX + ball.vy * tangentY;
+    ball.vx -= tangentVelocity * PHYSICS.wallFriction * tangentX;
+    ball.vy -= tangentVelocity * PHYSICS.wallFriction * tangentY;
   }
   return Math.abs(normalVelocity);
 }
 
-export function stepBall(ball, input, walls, dt, radius = 10) {
-  const acceleration = 560;
-  const maxSpeed = 285;
-  const damping = Math.pow(0.986, dt * 60);
-  ball.vx += clamp(input.x, -1, 1) * acceleration * dt;
-  ball.vy += clamp(input.y, -1, 1) * acceleration * dt;
-  ball.vx *= damping;
-  ball.vy *= damping;
-  const speed = Math.hypot(ball.vx, ball.vy);
-  if (speed > maxSpeed) {
-    ball.vx = ball.vx / speed * maxSpeed;
-    ball.vy = ball.vy / speed * maxSpeed;
+export function stepBall(ball, gravityVector, walls, dt, radius = BALL_RADIUS, onSurface = true) {
+  if (onSurface) {
+    const accelerationScale = PHYSICS.gravity * PHYSICS.solidSphereFactor * PHYSICS.pixelsPerMeter;
+    ball.vx += clamp(gravityVector.x, -1, 1) * accelerationScale * dt;
+    ball.vy += clamp(gravityVector.y, -1, 1) * accelerationScale * dt;
+
+    const speed = Math.hypot(ball.vx, ball.vy);
+    if (speed > 0) {
+      const normalGravity = Math.max(0, gravityVector.z ?? 1);
+      const rollingDeceleration = PHYSICS.rollingResistance * PHYSICS.gravity * normalGravity * PHYSICS.pixelsPerMeter;
+      const reducedSpeed = Math.max(0, speed - rollingDeceleration * dt);
+      const rollingScale = reducedSpeed / speed;
+      ball.vx *= rollingScale;
+      ball.vy *= rollingScale;
+      const dragScale = 1 / (1 + PHYSICS.airDrag * reducedSpeed * dt);
+      ball.vx *= dragScale;
+      ball.vy *= dragScale;
+    }
   }
+
   ball.x += ball.vx * dt;
   ball.y += ball.vy * dt;
 
   let strongestImpact = 0;
   for (const wall of walls) strongestImpact = Math.max(strongestImpact, resolveCircleRect(ball, radius, wall));
   return strongestImpact;
+}
+
+export function stepAir(ball, dt) {
+  if (ball.airHeight <= 0 && ball.verticalVelocity <= 0) {
+    ball.airHeight = 0;
+    ball.verticalVelocity = 0;
+    return false;
+  }
+  ball.verticalVelocity -= PHYSICS.gravity * PHYSICS.pixelsPerMeter * dt;
+  ball.airHeight += ball.verticalVelocity * dt;
+  if (ball.airHeight <= 0) {
+    ball.airHeight = 0;
+    ball.verticalVelocity = 0;
+    return true;
+  }
+  return false;
+}
+
+export function holeCaptureRadius(holeRadius, ballRadius = BALL_RADIUS) {
+  return Math.sqrt(Math.max(0, holeRadius * holeRadius - ballRadius * ballRadius));
 }

@@ -22,6 +22,16 @@ test("HTML references only local runtime assets", async () => {
   assert.doesNotMatch(html, /https?:\/\//);
 });
 
+test("3D runtime dependencies and queried UI elements are present", async () => {
+  const [html, app] = await Promise.all([
+    readFile(path.join(root, "index.html"), "utf8"),
+    readFile(path.join(root, "app.js"), "utf8")
+  ]);
+  assert.match(app, /vendor\/three\.module\.min\.js/);
+  const queriedIds = [...app.matchAll(/querySelector\("#([^"]+)"\)/g)].map((match) => match[1]);
+  for (const id of queriedIds) assert.match(html, new RegExp(`id="${id}"`), `missing #${id}`);
+});
+
 test("service worker app shell files exist", async () => {
   const worker = await readFile(path.join(root, "sw.js"), "utf8");
   const shellMatch = worker.match(/const APP_SHELL = \[([\s\S]*?)\];/);

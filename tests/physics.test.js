@@ -1,6 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { WORLD, createMaze, resolveCircleRect, seededRandom, stepBall } from "../physics.js";
+import {
+  WORLD,
+  BALL_RADIUS,
+  PHYSICS,
+  createMaze,
+  gravityFromAngles,
+  holeCaptureRadius,
+  resolveCircleRect,
+  seededRandom,
+  stepAir,
+  stepBall
+} from "../physics.js";
 
 test("seeded random is deterministic", () => {
   const first = seededRandom(42);
@@ -15,6 +26,8 @@ test("generated maze is deterministic and has a start-to-goal path", () => {
   assert.ok(first.solution.length > 1);
   assert.equal(first.solution[0], (first.rows - 1) * first.cols);
   assert.equal(first.solution.at(-1), first.cols - 1);
+  assert.ok(first.solution.length >= Math.floor(first.cols * first.rows * 0.48));
+  assert.ok(first.turns >= 12);
 });
 
 test("all maze cells are connected", () => {
@@ -35,17 +48,51 @@ test("all maze cells are connected", () => {
   assert.equal(seen.size, maze.cells.length);
 });
 
-test("hazards stay off the direct solution and inside the board", () => {
+test("numbered hazards challenge the required route without sealing it", () => {
   const maze = createMaze(777);
-  const solutionCenters = new Set(maze.solution.map((index) => {
-    const cell = maze.cells[index];
-    return `${(cell.col + .5) * maze.cellWidth}:${(cell.row + .5) * maze.cellHeight}`;
-  }));
+  assert.ok(maze.hazards.length >= 7);
   for (const hazard of maze.hazards) {
     assert.ok(hazard.x > 0 && hazard.x < WORLD.width);
     assert.ok(hazard.y > 0 && hazard.y < WORLD.height);
-    assert.equal(solutionCenters.has(`${hazard.x}:${hazard.y}`), false);
+    assert.equal(maze.solution[hazard.pathIndex] != null, true);
+    assert.equal(holeCaptureRadius(hazard.radius) < Math.min(maze.cellWidth, maze.cellHeight) / 2 - BALL_RADIUS, true);
   }
+});
+
+test("jump gaps cross straight sections of the required route", () => {
+  const maze = createMaze(777);
+  assert.equal(maze.gaps.length, 2);
+  for (const gap of maze.gaps) {
+    assert.ok(maze.solution[gap.pathIndex] != null);
+    assert.ok(gap.width > 0 && gap.height > 0);
+    assert.ok(maze.hazards.every((hazard) => Math.abs(hazard.pathIndex - gap.pathIndex) >= 2));
+  }
+});
+
+test("true horizontal orientation produces zero plane gravity", () => {
+  assert.deepEqual(gravityFromAngles(0, 0), { x: 0, y: 0, z: 1 });
+  const tenDegreesRight = gravityFromAngles(0, 10);
+  assert.ok(Math.abs(tenDegreesRight.x - Math.sin(10 * Math.PI / 180)) < 1e-10);
+  assert.equal(tenDegreesRight.y, 0);
+  assert.ok(tenDegreesRight.z > 0.98);
+});
+
+test("orientation is not clamped and reports an overturned board", () => {
+  const vertical = gravityFromAngles(90, 0);
+  assert.ok(Math.abs(vertical.y - 1) < 1e-10);
+  assert.ok(Math.abs(vertical.z) < 1e-10);
+  const overturned = gravityFromAngles(120, 0);
+  assert.ok(overturned.z < 0);
+});
+
+test("solid sphere acceleration follows 5/7 g and rolling resistance", () => {
+  const ball = { x: 100, y: 100, vx: 0, vy: 0 };
+  const gravityComponent = Math.sin(10 * Math.PI / 180);
+  stepBall(ball, { x: gravityComponent, y: 0 }, [], 0.01);
+  const idealDelta = gravityComponent * PHYSICS.gravity * PHYSICS.solidSphereFactor * PHYSICS.pixelsPerMeter * 0.01;
+  assert.ok(ball.vx > 0);
+  assert.ok(ball.vx < idealDelta);
+  assert.equal(ball.vy, 0);
 });
 
 test("circle collision pushes the ball out and reflects velocity", () => {
@@ -63,5 +110,26 @@ test("physics accelerates toward input and remains finite against maze walls", (
   assert.ok(Number.isFinite(ball.x) && Number.isFinite(ball.y));
   assert.ok(ball.x >= 0 && ball.x <= WORLD.width);
   assert.ok(ball.y >= 0 && ball.y <= WORLD.height);
-  assert.ok(Math.hypot(ball.vx, ball.vy) <= 286);
+  assert.ok(Number.isFinite(ball.vx) && Number.isFinite(ball.vy));
+  assert.ok(Math.hypot(ball.vx, ball.vy) < 4000);
+});
+
+test("air motion follows a ballistic arc and lands", () => {
+  const ball = { airHeight: .1, verticalVelocity: 500 };
+  assert.equal(stepAir(ball, 1 / 120), false);
+  assert.ok(ball.airHeight > .1);
+  let landed = false;
+  for (let index = 0; index < 240; index += 1) landed = stepAir(ball, 1 / 120) || landed;
+  assert.equal(landed, true);
+  assert.equal(ball.airHeight, 0);
+  assert.equal(ball.verticalVelocity, 0);
+});
+
+test("airborne planar motion has no slope acceleration or rolling resistance", () => {
+  const ball = { x: 100, y: 100, vx: 180, vy: -40 };
+  stepBall(ball, { x: 1, y: 1, z: .5 }, [], .1, BALL_RADIUS, false);
+  assert.equal(ball.vx, 180);
+  assert.equal(ball.vy, -40);
+  assert.equal(ball.x, 118);
+  assert.equal(ball.y, 96);
 });
