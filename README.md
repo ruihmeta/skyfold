@@ -1,6 +1,6 @@
 # Skyfold
 
-Skyfold is a portrait-first, pastel low-poly labyrinth PWA. Phone orientation shapes gravity and shifts the isometric view around a floating maze; phone-normal acceleration is integrated into the same contact simulation, so a quick lift and stop can naturally separate the orb from the surface.
+Skyfold is a portrait-first wooden labyrinth PWA. A fixed overhead camera watches the board rotate with the phone's full pitch and roll; phone-normal acceleration is integrated into the same contact simulation, so a quick lift and stop can naturally separate the steel ball from the surface.
 
 ## Run locally
 
@@ -13,10 +13,10 @@ Open `http://localhost:4173`. Drag or use arrow keys for planar desktop input. F
 
 ## Rendering and physics
 
-- Original procedural low-poly geometry and a refreshing cream, mint, coral, lavender, and sky palette.
-- Orthographic orbit camera, ACES tone mapping, fog, multi-directional ambient lighting, soft shadows, and a small GLSL ambient-shadow shader.
-- The board stays consistently lit while tilt changes the viewpoint, avoiding the previous black-face artifact.
-- Rolling uses `5/7 g`, rolling resistance, air drag, and inelastic wall response.
+- Original procedural wood grain, a classic raised maze, brass details, recessed hazards, and a reflective steel ball.
+- Fixed overhead perspective camera with the board itself following full phone pitch and roll.
+- ACES tone mapping, warm ambient and hemisphere lighting, cool fill light, double-sided materials, and a brighter underside prevent the previous black-face artifact.
+- Rolling uses `5/7 g`, reduced rolling resistance, reduced air drag, and a lower-friction wall response.
 - Vertical lift is not an action or threshold. Device-normal acceleration enters the relative contact equation continuously; loss of contact produces the ballistic arc.
 - Two route gaps, recessed hazards, low walls, falls, timekeeping, retries, and generated follow-up paths.
 

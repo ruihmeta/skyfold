@@ -421,81 +421,69 @@ function finishRun() {
   haptic([22, 35, 22, 35, 75]);
 }
 
-function pastelMaterial(color, options = {}) {
-  const tint = new THREE.Color(color);
-  return new THREE.MeshStandardMaterial({
-    color: tint,
-    emissive: tint.clone().multiplyScalar(.075),
-    emissiveIntensity: 1,
-    roughness: options.roughness ?? .86,
-    metalness: options.metalness ?? 0,
-    flatShading: options.flatShading ?? true,
-    side: THREE.DoubleSide,
-    vertexColors: options.vertexColors ?? false
-  });
-}
-
-function addAmbientShadow() {
-  const material = new THREE.ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-    uniforms: { shadowColor: { value: new THREE.Color(0x5b8f96) } },
-    vertexShader: "varying vec2 vUv; void main(){vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
-    fragmentShader: "varying vec2 vUv; uniform vec3 shadowColor; void main(){vec2 p=(vUv-.5)*vec2(1.0,1.22); float a=(1.0-smoothstep(.12,.52,length(p)))*.2; gl_FragColor=vec4(shadowColor,a);}"
-  });
-  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(650, 870), material);
-  shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = -67;
-  app.scene.add(shadow);
-}
-
-function addSkyFragments() {
-  const cloudMaterial = pastelMaterial(0xf3fff8, { roughness: 1 });
-  const fragmentMaterial = pastelMaterial(0xa5bddb, { roughness: .95 });
-  const fragments = [
-    [-380, -74, -250, 30], [390, -94, 80, 38], [-320, -115, 340, 23], [330, -60, -390, 18]
-  ];
-  for (const [x, y, z, size] of fragments) {
-    const fragment = new THREE.Mesh(new THREE.OctahedronGeometry(size, 0), fragmentMaterial);
-    fragment.position.set(x, y, z);
-    fragment.rotation.set(.2, x * .004, .12);
-    app.scene.add(fragment);
+function makeWoodTexture() {
+  const textureCanvas = document.createElement("canvas");
+  textureCanvas.width = 512;
+  textureCanvas.height = 1024;
+  const context = textureCanvas.getContext("2d");
+  const base = context.createLinearGradient(0, 0, 512, 0);
+  base.addColorStop(0, "#b97b47");
+  base.addColorStop(.25, "#dda66d");
+  base.addColorStop(.52, "#c78a53");
+  base.addColorStop(.78, "#e4b477");
+  base.addColorStop(1, "#a96c3e");
+  context.fillStyle = base;
+  context.fillRect(0, 0, 512, 1024);
+  let state = 0x5f3759df;
+  const random = () => {
+    state = Math.imul(state ^ (state >>> 15), state | 1);
+    return ((state ^ (state >>> 13)) >>> 0) / 4294967296;
+  };
+  for (let index = 0; index < 170; index += 1) {
+    const x = random() * 512;
+    const bend = (random() - .5) * 62;
+    context.beginPath();
+    context.moveTo(x, -20);
+    context.bezierCurveTo(x + bend, 300, x - bend * .7, 700, x + bend * .25, 1044);
+    context.strokeStyle = index % 4 === 0 ? `rgba(78,39,19,${.06 + random() * .09})` : `rgba(255,235,193,${.025 + random() * .05})`;
+    context.lineWidth = .5 + random() * 2;
+    context.stroke();
   }
-  for (const [x, y, z, scale] of [[-420,95,-80,1.2],[390,130,260,.85],[-260,170,420,.65]]) {
-    const cloud = new THREE.Group();
-    for (const offset of [[-18,0,0,22],[8,5,0,28],[30,-2,0,18]]) {
-      const puff = new THREE.Mesh(new THREE.IcosahedronGeometry(offset[3], 1), cloudMaterial);
-      puff.position.set(offset[0], offset[1], offset[2]);
-      cloud.add(puff);
-    }
-    cloud.position.set(x, y, z);
-    cloud.scale.setScalar(scale);
-    app.scene.add(cloud);
+  for (let index = 0; index < 12; index += 1) {
+    context.beginPath();
+    context.ellipse(random() * 512, random() * 1024, 12 + random() * 28, 4 + random() * 7, random() * .3, 0, Math.PI * 2);
+    context.strokeStyle = "rgba(80,39,18,.16)";
+    context.lineWidth = 1.4;
+    context.stroke();
   }
+  const texture = new THREE.CanvasTexture(textureCanvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = Math.min(8, app.renderer.capabilities.getMaxAnisotropy());
+  return texture;
 }
 
 function initialize3D() {
-  app.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
+  app.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
   app.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.8));
   app.renderer.shadowMap.enabled = true;
   app.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   app.renderer.outputColorSpace = THREE.SRGBColorSpace;
   app.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  app.renderer.toneMappingExposure = 1.08;
-  app.renderer.setClearColor(0xd9f2ec, 1);
+  app.renderer.toneMappingExposure = 1.02;
+  app.renderer.setClearColor(0xeadfce, 1);
 
   app.scene = new THREE.Scene();
-  app.scene.background = new THREE.Color(0xd9f2ec);
-  app.scene.fog = new THREE.Fog(0xd9f2ec, 760, 1550);
-  app.camera = new THREE.OrthographicCamera(-250, 250, 410, -410, 1, 2400);
-  app.camera.position.set(180, 760, 650);
-  app.camera.lookAt(0, -8, 0);
+  app.scene.background = new THREE.Color(0xeadfce);
+  app.scene.fog = new THREE.Fog(0xeadfce, 1050, 1900);
+  app.camera = new THREE.PerspectiveCamera(38, 1, 1, 2400);
+  app.camera.position.set(0, 1080, 24);
+  app.camera.up.set(0, 0, -1);
+  app.camera.lookAt(0, 0, 0);
 
-  app.scene.add(new THREE.AmbientLight(0xffffff, 1.25));
-  app.scene.add(new THREE.HemisphereLight(0xf4fff8, 0x91a9c6, 2.35));
-  app.keyLight = new THREE.DirectionalLight(0xfff0d5, 3.25);
-  app.keyLight.position.set(-360, 620, 260);
+  app.scene.add(new THREE.AmbientLight(0xfff7e8, 1.65));
+  app.scene.add(new THREE.HemisphereLight(0xfff4dc, 0x8294a3, 2.15));
+  app.keyLight = new THREE.DirectionalLight(0xffe1b5, 3.4);
+  app.keyLight.position.set(-330, 560, 280);
   app.keyLight.castShadow = true;
   app.keyLight.shadow.mapSize.set(1536, 1536);
   app.keyLight.shadow.bias = -.00018;
@@ -505,27 +493,35 @@ function initialize3D() {
   app.keyLight.shadow.camera.top = 470;
   app.keyLight.shadow.camera.bottom = -470;
   app.scene.add(app.keyLight);
-  const fill = new THREE.DirectionalLight(0xa7cfff, 1.4);
+  const fill = new THREE.DirectionalLight(0xb8d7e5, 1.65);
   fill.position.set(420, 260, -460);
   app.scene.add(fill);
-  const coralRim = new THREE.DirectionalLight(0xffb7a4, .8);
-  coralRim.position.set(-260, 120, -500);
-  app.scene.add(coralRim);
+  const rim = new THREE.DirectionalLight(0xffd4a3, 1.15);
+  rim.position.set(-260, 180, -500);
+  app.scene.add(rim);
 
+  const woodTexture = makeWoodTexture();
+  const woodMaterial = (color, roughness) => new THREE.MeshStandardMaterial({
+    map: woodTexture,
+    color,
+    roughness,
+    metalness: 0,
+    emissive: new THREE.Color(color).multiplyScalar(.035),
+    emissiveIntensity: 1,
+    side: THREE.DoubleSide
+  });
   app.materials = {
-    board: pastelMaterial(0xfff4d6),
-    wall: pastelMaterial(0xffffff, { vertexColors: true }),
-    frame: pastelMaterial(0xef917c),
-    under: pastelMaterial(0x9ca9d8),
-    dark: pastelMaterial(0x64aaa7),
-    brass: pastelMaterial(0xf2c66d, { roughness: .58 }),
-    mint: pastelMaterial(0x8fd5c7),
-    foliage: pastelMaterial(0x69b99b),
-    orb: new THREE.MeshPhysicalMaterial({ color: 0xff8f7b, emissive: 0x2a0906, emissiveIntensity: .08, metalness: .08, roughness: .24, clearcoat: 1, clearcoatRoughness: .14, flatShading: true, side: THREE.DoubleSide }),
-    ink: new THREE.MeshBasicMaterial({ color: 0x385b6b, transparent: true, opacity: .75, depthWrite: false, side: THREE.DoubleSide })
+    board: woodMaterial(0xe4b47c, .72),
+    wall: woodMaterial(0xc1844f, .64),
+    frame: woodMaterial(0x8e542f, .58),
+    under: woodMaterial(0x95613f, .66),
+    dark: new THREE.MeshStandardMaterial({ color: 0x2d211b, emissive: 0x160e0a, emissiveIntensity: .18, roughness: .9, side: THREE.DoubleSide }),
+    brass: new THREE.MeshStandardMaterial({ color: 0xc99a4f, emissive: 0x2a1805, emissiveIntensity: .12, roughness: .28, metalness: .72, side: THREE.DoubleSide }),
+    mint: new THREE.MeshStandardMaterial({ color: 0x6d8f6b, emissive: 0x102010, emissiveIntensity: .12, roughness: .6, side: THREE.DoubleSide }),
+    foliage: woodMaterial(0x9b6037, .7),
+    orb: new THREE.MeshPhysicalMaterial({ color: 0xe9eeee, emissive: 0x111515, emissiveIntensity: .1, metalness: 1, roughness: .1, clearcoat: 1, clearcoatRoughness: .06, side: THREE.DoubleSide }),
+    ink: new THREE.MeshBasicMaterial({ color: 0x493025, transparent: true, opacity: .78, depthWrite: false, side: THREE.DoubleSide })
   };
-  addAmbientShadow();
-  addSkyFragments();
   rebuildBoard();
   resizeRenderer();
 }
@@ -547,15 +543,15 @@ function makeNumberMarker(number, x, z) {
   markerCanvas.width = 96;
   markerCanvas.height = 96;
   const marker = markerCanvas.getContext("2d");
-  marker.fillStyle = "rgba(255,249,224,.9)";
+  marker.fillStyle = "rgba(247,225,184,.9)";
   marker.beginPath();
   marker.arc(48, 48, 26, 0, Math.PI * 2);
   marker.fill();
-  marker.strokeStyle = "rgba(232,126,111,.82)";
+  marker.strokeStyle = "rgba(83,48,27,.8)";
   marker.lineWidth = 4;
   marker.stroke();
-  marker.fillStyle = "#3f6574";
-  marker.font = "bold 36px Avenir";
+  marker.fillStyle = "#432819";
+  marker.font = "bold 36px Georgia";
   marker.textAlign = "center";
   marker.textBaseline = "middle";
   marker.fillText(String(number), 48, 50);
@@ -588,22 +584,21 @@ function rebuildBoard() {
   app.scene.add(board);
   app.board = board;
 
-  board.add(box(WORLD.width + 82, 25, WORLD.height + 82, app.materials.under, 0, -29, 0));
-  board.add(box(WORLD.width + 48, 19, WORLD.height + 48, app.materials.frame, 0, -15, 0));
-  board.add(box(WORLD.width + 12, 8, WORLD.height + 12, app.materials.board, 0, -4, 0));
-  const railHeight = 25;
-  const railWidth = 15;
-  board.add(box(WORLD.width + 42, railHeight, railWidth, app.materials.mint, 0, 4, -WORLD.height / 2 - 12));
-  board.add(box(WORLD.width + 42, railHeight, railWidth, app.materials.mint, 0, 4, WORLD.height / 2 + 12));
-  board.add(box(railWidth, railHeight, WORLD.height + 26, app.materials.frame, -WORLD.width / 2 - 12, 4, 0));
-  board.add(box(railWidth, railHeight, WORLD.height + 26, app.materials.frame, WORLD.width / 2 + 12, 4, 0));
+  board.add(box(WORLD.width + 48, 18, WORLD.height + 48, app.materials.under, 0, -18, 0));
+  board.add(box(WORLD.width + 36, 15, WORLD.height + 36, app.materials.frame, 0, -11, 0));
+  board.add(box(WORLD.width + 10, 8, WORLD.height + 10, app.materials.board, 0, -4, 0));
+  const railHeight = 30;
+  const railWidth = 18;
+  board.add(box(WORLD.width + 46, railHeight, railWidth, app.materials.frame, 0, 4, -WORLD.height / 2 - 14));
+  board.add(box(WORLD.width + 46, railHeight, railWidth, app.materials.frame, 0, 4, WORLD.height / 2 + 14));
+  board.add(box(railWidth, railHeight, WORLD.height + 28, app.materials.frame, -WORLD.width / 2 - 14, 4, 0));
+  board.add(box(railWidth, railHeight, WORLD.height + 28, app.materials.frame, WORLD.width / 2 + 14, 4, 0));
 
   const wallGeometry = new THREE.BoxGeometry(1, 1, 1);
   const wallInstances = new THREE.InstancedMesh(wallGeometry, app.materials.wall, app.maze.walls.length);
   wallInstances.castShadow = true;
   wallInstances.receiveShadow = true;
   const matrix = new THREE.Matrix4();
-  const wallPalette = [0xfaf5d8, 0xb8dcd2, 0xd2c6e6, 0xf1b09b];
   app.maze.walls.forEach((wall, index) => {
     const position = worldPosition(wall.x + wall.width / 2, wall.y + wall.height / 2);
     matrix.compose(
@@ -612,39 +607,29 @@ function rebuildBoard() {
       new THREE.Vector3(wall.width, 17, wall.height)
     );
     wallInstances.setMatrixAt(index, matrix);
-    wallInstances.setColorAt(index, new THREE.Color(wallPalette[(index + Math.floor(wall.y / 55)) % wallPalette.length]));
   });
   wallInstances.instanceMatrix.needsUpdate = true;
-  if (wallInstances.instanceColor) wallInstances.instanceColor.needsUpdate = true;
   board.add(wallInstances);
 
-  const pillarGeometry = new THREE.CylinderGeometry(8, 12, 38, 6);
-  const crownGeometry = new THREE.ConeGeometry(16, 30, 6);
-  for (const [x, z, scale] of [[-202,-278,1],[203,-116,.82],[-202,212,.74],[203,286,1.08]]) {
-    const pillar = new THREE.Mesh(pillarGeometry, app.materials.brass);
-    pillar.position.set(x, -1, z);
-    pillar.scale.setScalar(scale);
-    pillar.castShadow = true;
-    board.add(pillar);
-    const crown = new THREE.Mesh(crownGeometry, app.materials.foliage);
-    crown.position.set(x, 28 * scale, z);
-    crown.rotation.y = x * .01;
-    crown.scale.setScalar(scale);
-    crown.castShadow = true;
-    board.add(crown);
+  const screwGeometry = new THREE.CylinderGeometry(3.2, 3.2, 1.5, 20);
+  for (const [x, z] of [[-190,-320],[190,-320],[-190,320],[190,320]]) {
+    const screw = new THREE.Mesh(screwGeometry, app.materials.brass);
+    screw.position.set(x, 5.5, z);
+    screw.castShadow = true;
+    board.add(screw);
   }
 
   for (const hazard of app.maze.hazards) {
     const position = worldPosition(hazard.x, hazard.y);
     const well = new THREE.Mesh(
-      new THREE.CylinderGeometry(hazard.radius, hazard.radius * .78, 9, 12),
+      new THREE.CylinderGeometry(hazard.radius, hazard.radius * .82, 9, 30),
       app.materials.dark
     );
     well.position.set(position.x, -3.8, position.z);
     well.receiveShadow = true;
     board.add(well);
     const lip = new THREE.Mesh(
-      new THREE.TorusGeometry(hazard.radius + .8, 1.35, 5, 18),
+      new THREE.TorusGeometry(hazard.radius + .8, 1.35, 8, 30),
       app.materials.frame
     );
     lip.rotation.x = Math.PI / 2;
@@ -686,16 +671,16 @@ function rebuildBoard() {
   board.add(startRing);
 
   const goal = worldPosition(app.maze.goal.x, app.maze.goal.y);
-  const goalWell = new THREE.Mesh(new THREE.CylinderGeometry(13, 11, 8, 12), app.materials.dark);
+  const goalWell = new THREE.Mesh(new THREE.CylinderGeometry(13, 11, 8, 30), app.materials.dark);
   goalWell.position.set(goal.x, -3.8, goal.z);
   board.add(goalWell);
-  const goalRing = new THREE.Mesh(new THREE.TorusGeometry(14.2, 2.1, 6, 20), app.materials.brass);
+  const goalRing = new THREE.Mesh(new THREE.TorusGeometry(14.2, 2.1, 8, 32), app.materials.brass);
   goalRing.rotation.x = Math.PI / 2;
   goalRing.position.set(goal.x, .35, goal.z);
   goalRing.castShadow = true;
   board.add(goalRing);
 
-  app.ballMesh = new THREE.Mesh(new THREE.IcosahedronGeometry(BALL_RADIUS, 2), app.materials.orb);
+  app.ballMesh = new THREE.Mesh(new THREE.SphereGeometry(BALL_RADIUS, 32, 22), app.materials.orb);
   app.ballMesh.castShadow = true;
   app.ballMesh.receiveShadow = true;
   board.add(app.ballMesh);
@@ -712,8 +697,6 @@ function rebuildBoard() {
 
 const rollAxis = new THREE.Vector3();
 const rollQuaternion = new THREE.Quaternion();
-const cameraDestination = new THREE.Vector3();
-const cameraLook = new THREE.Vector3();
 function updateBallMesh(dt, now) {
   if (!app.ballMesh) return;
   const position = worldPosition(app.ball.x, app.ball.y);
@@ -739,21 +722,10 @@ function lerpAngle(current, target, amount) {
 
 function updateScene(dt, now, gravity) {
   if (!app.board) return;
-  const follow = 1 - Math.exp(-dt * 4.8);
-  cameraDestination.set(
-    180 + gravity.x * 110,
-    760 + (1 - Math.max(0, gravity.z)) * 55,
-    650 + gravity.y * 120
-  );
-  app.camera.position.lerp(cameraDestination, follow);
-  cameraLook.set(gravity.x * 28, -10, gravity.y * 38);
-  app.camera.lookAt(cameraLook);
-  const zoomTarget = 1 - Math.min(1, Math.hypot(gravity.x, gravity.y)) * .12;
-  app.camera.zoom += (zoomTarget - app.camera.zoom) * follow;
-  app.camera.updateProjectionMatrix();
-  app.board.rotation.x = lerpAngle(app.board.rotation.x, 0, follow);
-  app.board.rotation.z = lerpAngle(app.board.rotation.z, 0, follow);
-  app.board.rotation.y = lerpAngle(app.board.rotation.y, gravity.x * .075, follow);
+  const follow = 1 - Math.exp(-dt * 8.5);
+  app.board.rotation.x = lerpAngle(app.board.rotation.x, gravity.viewPitch, follow);
+  app.board.rotation.z = lerpAngle(app.board.rotation.z, -gravity.viewRoll, follow);
+  app.board.rotation.y = lerpAngle(app.board.rotation.y, 0, follow);
   updateBallMesh(dt, now);
 }
 
@@ -761,12 +733,7 @@ function resizeRenderer() {
   if (!app.renderer) return;
   const rect = frame.getBoundingClientRect();
   app.renderer.setSize(Math.max(1, rect.width), Math.max(1, rect.height), false);
-  const aspect = Math.max(.45, rect.width / Math.max(1, rect.height));
-  const viewHeight = 1080;
-  app.camera.left = -viewHeight * aspect / 2;
-  app.camera.right = viewHeight * aspect / 2;
-  app.camera.top = viewHeight / 2;
-  app.camera.bottom = -viewHeight / 2;
+  app.camera.aspect = Math.max(.45, rect.width / Math.max(1, rect.height));
   app.camera.updateProjectionMatrix();
 }
 

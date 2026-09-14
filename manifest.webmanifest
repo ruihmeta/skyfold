@@ -1,14 +1,14 @@
 {
   "name": "Skyfold — A Pocket Gravity Study",
   "short_name": "Skyfold",
-  "description": "A pastel low-poly labyrinth shaped by gravity, perspective, and motion.",
+  "description": "A classic wooden labyrinth with a steel ball, shaped by phone tilt and motion.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#d9f2ec",
-  "theme_color": "#d9f2ec",
+  "background_color": "#eadfce",
+  "theme_color": "#eadfce",
   "categories": ["games"],
   "icons": [
     {

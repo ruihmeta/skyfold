@@ -1,13 +1,13 @@
 :root {
   color-scheme: light;
-  --ink: #31536a;
-  --ink-soft: #6f8792;
-  --sky: #d9f2ec;
+  --ink: #3f2b21;
+  --ink-soft: #846f60;
+  --sky: #eadfce;
   --paper: rgba(255, 255, 249, .84);
-  --mint: #8fd5c7;
-  --coral: #ef8d78;
-  --sun: #f2c66d;
-  --lavender: #9ca9d8;
+  --mint: #819477;
+  --coral: #a76840;
+  --sun: #d9ad5f;
+  --lavender: #a39188;
   font-family: "Avenir Next", Avenir, "Trebuchet MS", sans-serif;
   background: var(--sky);
 }
@@ -21,9 +21,9 @@ html, body {
   overscroll-behavior: none;
   color: var(--ink);
   background:
-    radial-gradient(circle at 13% 12%, rgba(255,255,255,.82) 0 7%, transparent 27%),
-    radial-gradient(circle at 90% 75%, rgba(151,178,224,.24) 0 10%, transparent 35%),
-    linear-gradient(155deg, #eaf9f2 0%, #d3eeeb 52%, #cbdfea 100%);
+    radial-gradient(circle at 13% 12%, rgba(255,255,255,.72) 0 7%, transparent 27%),
+    radial-gradient(circle at 90% 75%, rgba(141,102,71,.14) 0 10%, transparent 35%),
+    linear-gradient(155deg, #f5eee2 0%, #eadfce 52%, #d8c5b0 100%);
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -86,8 +86,8 @@ a { text-decoration: none; }
   overflow: hidden;
   border: 1px solid rgba(255,255,255,.72);
   border-radius: 30px;
-  background: linear-gradient(160deg, #dff5ef, #bfdfe3);
-  box-shadow: 0 26px 70px rgba(69,108,124,.18), inset 0 0 0 1px rgba(67,104,119,.05);
+  background: linear-gradient(160deg, #f3eadc, #d9c6b0);
+  box-shadow: 0 26px 70px rgba(91,60,39,.18), inset 0 0 0 1px rgba(91,60,39,.06);
   touch-action: none;
 }
 
@@ -129,7 +129,7 @@ a { text-decoration: none; }
   visibility: hidden;
   transform: translateY(10px);
   transition: opacity .4s ease, transform .4s ease, visibility .4s;
-  background: linear-gradient(155deg, rgba(239,249,242,.92), rgba(214,235,234,.9));
+  background: linear-gradient(155deg, rgba(250,244,233,.94), rgba(228,212,195,.92));
   backdrop-filter: blur(18px) saturate(.9);
 }
 .modal-panel.active { opacity: 1; visibility: visible; transform: translateY(0); }

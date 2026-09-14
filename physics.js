@@ -4,10 +4,10 @@ export const PHYSICS = Object.freeze({
   gravity: 9.80665,
   solidSphereFactor: 5 / 7,
   pixelsPerMeter: 460,
-  rollingResistance: 0.017,
-  airDrag: 0.00034,
+  rollingResistance: 0.008,
+  airDrag: 0.00016,
   restitution: 0.28,
-  wallFriction: 0.055,
+  wallFriction: 0.024,
   wallHeight: 17,
   surfaceMotionResponse: 1.65
 });
