@@ -1,4 +1,4 @@
-const CACHE_NAME = "tilt-lab-v3";
+const CACHE_NAME = "skyfold-v1";
 const APP_SHELL = [
   "./",
   "./index.html",

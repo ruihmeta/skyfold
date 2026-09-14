@@ -1,14 +1,14 @@
 {
-  "name": "TILT//LAB — Pocket Labyrinth",
-  "short_name": "TILT//LAB",
-  "description": "A physical 3D wood-and-steel labyrinth controlled by phone tilt.",
+  "name": "Skyfold — A Pocket Gravity Study",
+  "short_name": "Skyfold",
+  "description": "A pastel low-poly labyrinth shaped by gravity, perspective, and motion.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#140c07",
-  "theme_color": "#2a180e",
+  "background_color": "#d9f2ec",
+  "theme_color": "#d9f2ec",
   "categories": ["games"],
   "icons": [
     {

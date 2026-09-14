@@ -1,21 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <radialGradient id="bg" cx="30%" cy="20%" r="90%">
-      <stop offset="0" stop-color="#b8753d"/>
-      <stop offset="0.55" stop-color="#7a421f"/>
-      <stop offset="1" stop-color="#3d1e0d"/>
-    </radialGradient>
-    <radialGradient id="ball" cx="30%" cy="24%" r="72%">
-      <stop offset="0" stop-color="#fff"/>
-      <stop offset="0.25" stop-color="#e8eeee"/>
-      <stop offset="0.72" stop-color="#929a9c"/>
-      <stop offset="1" stop-color="#343a3d"/>
-    </radialGradient>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#effbf3"/>
+      <stop offset="1" stop-color="#badce3"/>
+    </linearGradient>
+    <linearGradient id="orb" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#ffd6bd"/>
+      <stop offset=".52" stop-color="#ef8d78"/>
+      <stop offset="1" stop-color="#c86168"/>
+    </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
-  <path d="M86 105h340v302H86z" fill="none" stroke="#3b1e0e" stroke-width="22"/>
-  <path d="M169 105v92h91v99h83v111M86 282h94v-85h163v-92M260 296H151v111" fill="none" stroke="#5a2d14" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="362" cy="144" r="33" fill="none" stroke="#ffcf5a" stroke-width="13"/>
-  <circle cx="133" cy="355" r="39" fill="#1d0f08" opacity=".55"/>
-  <circle cx="133" cy="355" r="28" fill="url(#ball)"/>
+  <rect width="512" height="512" rx="118" fill="url(#sky)"/>
+  <path d="M256 74 422 158 256 242 90 158Z" fill="#fff4d6"/>
+  <path d="M90 158 256 242v176L90 334Z" fill="#8fd5c7"/>
+  <path d="m422 158-166 84v176l166-84Z" fill="#9ca9d8"/>
+  <path d="m157 161 44-22 42 21-44 23Zm105 54 44-22 42 21-44 23Zm-42 43 44-22 42 21-44 23Z" fill="#ef8d78"/>
+  <circle cx="190" cy="208" r="30" fill="url(#orb)"/>
+  <circle cx="190" cy="208" r="13" fill="#fff4e8" opacity=".7"/>
 </svg>

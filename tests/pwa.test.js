@@ -10,7 +10,7 @@ test("manifest describes an installable standalone portrait app", async () => {
   const manifest = JSON.parse(await readFile(path.join(root, "manifest.webmanifest"), "utf8"));
   assert.equal(manifest.display, "standalone");
   assert.equal(manifest.orientation, "portrait-primary");
-  assert.ok(manifest.name.includes("TILT//LAB"));
+  assert.ok(manifest.name.includes("Skyfold"));
   assert.ok(manifest.icons.length >= 1);
   for (const icon of manifest.icons) await access(path.join(root, icon.src.replace(/^\.\//, "")));
 });
@@ -28,6 +28,8 @@ test("3D runtime dependencies and queried UI elements are present", async () => 
     readFile(path.join(root, "app.js"), "utf8")
   ]);
   assert.match(app, /vendor\/three\.module\.min\.js/);
+  assert.doesNotMatch(app, /requestJump/);
+  assert.match(app, /stepVerticalPhysics/);
   const queriedIds = [...app.matchAll(/querySelector\("#([^"]+)"\)/g)].map((match) => match[1]);
   for (const id of queriedIds) assert.match(html, new RegExp(`id="${id}"`), `missing #${id}`);
 });

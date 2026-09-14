@@ -8,7 +8,8 @@ export const PHYSICS = Object.freeze({
   airDrag: 0.00034,
   restitution: 0.28,
   wallFriction: 0.055,
-  wallHeight: 17
+  wallHeight: 17,
+  surfaceMotionResponse: 1.65
 });
 
 export function clamp(value, min, max) {
@@ -236,8 +237,8 @@ export function placeRouteGaps(solution, cells, cellWidth, cellHeight, hazards) 
     .sort((a, b) => a.pathIndex - b.pathIndex)
     .map((candidate, index) => {
       const verticalTravel = candidate.incoming.y !== 0;
-      const width = verticalTravel ? cellWidth - 9 : 16;
-      const height = verticalTravel ? 16 : cellHeight - 9;
+      const width = verticalTravel ? cellWidth - 22 : 16;
+      const height = verticalTravel ? 16 : cellHeight - 22;
       return {
         id: index + 1,
         pathIndex: candidate.pathIndex,
@@ -329,23 +330,24 @@ export function resolveCircleRect(ball, radius, rect, restitution = PHYSICS.rest
 }
 
 export function stepBall(ball, gravityVector, walls, dt, radius = BALL_RADIUS, onSurface = true) {
-  if (onSurface) {
-    const accelerationScale = PHYSICS.gravity * PHYSICS.solidSphereFactor * PHYSICS.pixelsPerMeter;
-    ball.vx += clamp(gravityVector.x, -1, 1) * accelerationScale * dt;
-    ball.vy += clamp(gravityVector.y, -1, 1) * accelerationScale * dt;
+  const accelerationFactor = onSurface ? PHYSICS.solidSphereFactor : 1;
+  const accelerationScale = PHYSICS.gravity * accelerationFactor * PHYSICS.pixelsPerMeter;
+  ball.vx += clamp(gravityVector.x, -1, 1) * accelerationScale * dt;
+  ball.vy += clamp(gravityVector.y, -1, 1) * accelerationScale * dt;
 
-    const speed = Math.hypot(ball.vx, ball.vy);
-    if (speed > 0) {
+  const speed = Math.hypot(ball.vx, ball.vy);
+  if (speed > 0) {
+    if (onSurface) {
       const normalGravity = Math.max(0, gravityVector.z ?? 1);
       const rollingDeceleration = PHYSICS.rollingResistance * PHYSICS.gravity * normalGravity * PHYSICS.pixelsPerMeter;
       const reducedSpeed = Math.max(0, speed - rollingDeceleration * dt);
       const rollingScale = reducedSpeed / speed;
       ball.vx *= rollingScale;
       ball.vy *= rollingScale;
-      const dragScale = 1 / (1 + PHYSICS.airDrag * reducedSpeed * dt);
-      ball.vx *= dragScale;
-      ball.vy *= dragScale;
     }
+    const dragScale = 1 / (1 + PHYSICS.airDrag * speed * dt);
+    ball.vx *= dragScale;
+    ball.vy *= dragScale;
   }
 
   ball.x += ball.vx * dt;
@@ -356,20 +358,28 @@ export function stepBall(ball, gravityVector, walls, dt, radius = BALL_RADIUS, o
   return strongestImpact;
 }
 
-export function stepAir(ball, dt) {
-  if (ball.airHeight <= 0 && ball.verticalVelocity <= 0) {
+export function stepVerticalPhysics(ball, gravityNormal, surfaceAcceleration, dt) {
+  const wasAirborne = ball.airHeight > 0;
+  const relativeAcceleration = (
+    -PHYSICS.gravity * clamp(gravityNormal, -1, 1) -
+    clamp(surfaceAcceleration || 0, -30, 30) * PHYSICS.surfaceMotionResponse
+  ) * PHYSICS.pixelsPerMeter;
+
+  if (!wasAirborne && ball.verticalVelocity <= 0 && relativeAcceleration <= 0) {
     ball.airHeight = 0;
     ball.verticalVelocity = 0;
-    return false;
+    return { airborne: false, liftOff: false, landed: false, impact: 0 };
   }
-  ball.verticalVelocity -= PHYSICS.gravity * PHYSICS.pixelsPerMeter * dt;
+
+  ball.verticalVelocity += relativeAcceleration * dt;
   ball.airHeight += ball.verticalVelocity * dt;
   if (ball.airHeight <= 0) {
+    const impact = Math.abs(ball.verticalVelocity);
     ball.airHeight = 0;
     ball.verticalVelocity = 0;
-    return true;
+    return { airborne: false, liftOff: false, landed: wasAirborne, impact };
   }
-  return false;
+  return { airborne: true, liftOff: !wasAirborne, landed: false, impact: 0 };
 }
 
 export function holeCaptureRadius(holeRadius, ballRadius = BALL_RADIUS) {

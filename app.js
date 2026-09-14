@@ -7,8 +7,8 @@ import {
   createMaze,
   gravityFromAngles,
   holeCaptureRadius,
-  stepAir,
-  stepBall
+  stepBall,
+  stepVerticalPhysics
 } from "./physics.js";
 
 const canvas = document.querySelector("#gameCanvas");
@@ -43,6 +43,7 @@ const app = {
   mode: "ready",
   elapsed: 0,
   fallUntil: 0,
+  fallStartHeight: 0,
   sensor: {
     latestBeta: null,
     latestGamma: null,
@@ -53,8 +54,10 @@ const app = {
     gravityZ: 1,
     pitch: 0,
     roll: 0,
-    lastMotionZ: 0,
-    jumpCooldown: 0,
+    normalAcceleration: 0,
+    motionBaseline: null,
+    motionAt: 0,
+    motionSeen: false,
     seen: false
   },
   touch: { active: false, pointerId: null, originX: 0, originY: 0, x: 0, y: 0 },
@@ -83,7 +86,7 @@ function formatTime(seconds) {
 
 function readBest() {
   try {
-    return Number(localStorage.getItem("tilt-lab-best-v2") || 0);
+    return Number(localStorage.getItem("skyfold-best-v1") || 0);
   } catch {
     return 0;
   }
@@ -146,24 +149,18 @@ function handleOrientation(event) {
 }
 
 function handleMotion(event) {
-  const z = Number(event.acceleration?.z);
+  const direct = Number(event.acceleration?.z);
+  const includingGravity = Number(event.accelerationIncludingGravity?.z);
+  let z = direct;
+  if (!Number.isFinite(z) && Number.isFinite(includingGravity)) {
+    if (app.sensor.motionBaseline == null) app.sensor.motionBaseline = includingGravity;
+    app.sensor.motionBaseline += (includingGravity - app.sensor.motionBaseline) * .035;
+    z = includingGravity - app.sensor.motionBaseline;
+  }
   if (!Number.isFinite(z)) return;
-  const jerk = Math.abs(z - app.sensor.lastMotionZ);
-  app.sensor.lastMotionZ = z;
-  const liftStrength = Math.max(Math.abs(z), jerk * 0.62);
-  if (liftStrength >= 4.4 && app.sensor.gravityZ > 0.28) requestJump(liftStrength);
-}
-
-function requestJump(strength = 6) {
-  const now = performance.now();
-  if (app.mode !== "playing" || app.ball.airHeight > 0 || now < app.sensor.jumpCooldown) return;
-  const launchSpeed = clamp(390 + (strength - 4.4) * 72, 390, 760);
-  app.ball.airHeight = 0.1;
-  app.ball.verticalVelocity = launchSpeed;
-  app.sensor.jumpCooldown = now + 680;
-  playTone(260, .055, "triangle", .026);
-  haptic(12);
-  showToast("LIFT JUMP");
+  app.sensor.normalAcceleration += (clamp(z, -30, 30) - app.sensor.normalAcceleration) * .62;
+  app.sensor.motionAt = performance.now();
+  app.sensor.motionSeen = true;
 }
 
 async function enableTilt() {
@@ -223,6 +220,7 @@ function setCurrentSurfaceAsLevel() {
   app.sensor.gravityZ = 1;
   app.sensor.pitch = 0;
   app.sensor.roll = 0;
+  app.sensor.normalAcceleration = 0;
   app.ball.vx *= 0.2;
   app.ball.vy *= 0.2;
   haptic(10);
@@ -235,12 +233,15 @@ function getGravityInput() {
   let z = app.sensor.gravityZ;
   let viewPitch = app.sensor.pitch;
   let viewRoll = app.sensor.roll;
+  if (performance.now() - app.sensor.motionAt > 90) app.sensor.normalAcceleration *= .78;
+  let normalAcceleration = app.sensor.normalAcceleration;
   if (app.touch.active) {
     x = app.touch.x * TOUCH_TILT;
     y = app.touch.y * TOUCH_TILT;
     z = Math.sqrt(Math.max(0, 1 - x * x - y * y));
     viewPitch = Math.asin(y);
     viewRoll = Math.asin(x);
+    normalAcceleration = 0;
   }
   let keyboardX = 0;
   let keyboardY = 0;
@@ -254,13 +255,14 @@ function getGravityInput() {
     z = Math.sqrt(Math.max(0, 1 - x * x - y * y));
     viewPitch = Math.asin(y);
     viewRoll = Math.asin(x);
+    normalAcceleration = 0;
   }
   app.lastGravity.x += (x - app.lastGravity.x) * 0.18;
   app.lastGravity.y += (y - app.lastGravity.y) * 0.18;
   app.lastGravity.z += (z - app.lastGravity.z) * 0.18;
   app.lastGravity.viewPitch = viewPitch;
   app.lastGravity.viewRoll = viewRoll;
-  return { x, y, z, viewPitch, viewRoll };
+  return { x, y, z, viewPitch, viewRoll, normalAcceleration };
 }
 
 function resetRun({ newMaze = false } = {}) {
@@ -279,6 +281,7 @@ function resetRun({ newMaze = false } = {}) {
   });
   app.elapsed = 0;
   app.mode = "playing";
+  app.fallStartHeight = 0;
   if (app.ballMesh) {
     app.ballMesh.visible = true;
     app.ballMesh.scale.setScalar(1);
@@ -288,13 +291,14 @@ function resetRun({ newMaze = false } = {}) {
   updateHud();
 }
 
-function beginFall(now, message) {
+function beginFall(now, message, preserveHeight = false) {
   if (app.mode !== "playing") return;
   app.mode = "falling";
   app.fallUntil = now + 760;
   app.ball.vx = 0;
   app.ball.vy = 0;
-  app.ball.airHeight = 0;
+  app.fallStartHeight = preserveHeight ? app.ball.airHeight : 0;
+  app.ball.airHeight = app.fallStartHeight;
   app.ball.verticalVelocity = 0;
   playFallSound();
   haptic([28, 34, 65]);
@@ -315,6 +319,7 @@ function update(dt, now) {
       });
       app.elapsed += 2;
       app.mode = "playing";
+      app.fallStartHeight = 0;
       app.ballMesh.visible = true;
       app.ballMesh.scale.setScalar(1);
       showToast("Back to start · +2.0s");
@@ -327,16 +332,12 @@ function update(dt, now) {
     return;
   }
 
-  if (gravity.z < -0.02 && app.ball.airHeight <= 0) {
-    beginFall(now, "BALL LEFT THE BOARD");
-    updateScene(dt, now, gravity);
-    return;
-  }
-
   app.elapsed += dt;
   const steps = Math.max(1, Math.ceil(dt / (1 / 180)));
   let impact = 0;
   let landed = false;
+  let liftOff = false;
+  let landingImpact = 0;
   for (let index = 0; index < steps; index += 1) {
     const stepTime = dt / steps;
     const airborne = app.ball.airHeight > 0;
@@ -349,18 +350,29 @@ function update(dt, now) {
       BALL_RADIUS,
       !airborne
     ));
-    landed = stepAir(app.ball, stepTime) || landed;
+    const vertical = stepVerticalPhysics(app.ball, gravity.z, gravity.normalAcceleration, stepTime);
+    landed = vertical.landed || landed;
+    liftOff = vertical.liftOff || liftOff;
+    landingImpact = Math.max(landingImpact, vertical.impact);
   }
 
+  if (liftOff) {
+    playTone(310, .04, "sine", .014);
+    haptic(5);
+  }
   if (landed) {
-    playTone(190, .04, "triangle", .025);
-    haptic(8);
+    playTone(170 + Math.min(landingImpact, 500) * .22, .045, "triangle", .024);
+    haptic(landingImpact > 220 ? 10 : 5);
   }
 
   if (impact > 72 && now > app.impactCooldown) {
     app.impactCooldown = now + 95;
     playTone(850 + Math.min(impact, 250) * 1.8, 0.024, "sine", 0.018);
     haptic(6);
+  }
+
+  if (app.ball.airHeight > 86 && gravity.z < -.05) {
+    beginFall(now, "LOST TO THE SKY", true);
   }
 
   const outsideBoard = app.ball.x < -BALL_RADIUS * 2 ||
@@ -400,110 +412,120 @@ function finishRun() {
   const previous = readBest();
   const isBest = !previous || app.elapsed < previous;
   if (isBest) {
-    try { localStorage.setItem("tilt-lab-best-v2", app.elapsed.toString()); } catch { /* optional persistence */ }
+    try { localStorage.setItem("skyfold-best-v1", app.elapsed.toString()); } catch { /* optional persistence */ }
   }
   ui.resultTime.textContent = formatTime(app.elapsed);
-  ui.resultCopy.textContent = `${app.maze.hazards.length} holes + ${app.maze.gaps.length} jump gaps · ${app.maze.turns} turns · ${isBest ? "new best" : `best ${formatTime(previous)}`}`;
+  ui.resultCopy.textContent = `${app.maze.hazards.length} wells + ${app.maze.gaps.length} sky gaps · ${app.maze.turns} turns · ${isBest ? "new best" : `best ${formatTime(previous)}`}`;
   ui.winPanel.classList.add("active");
   playWinSound();
   haptic([22, 35, 22, 35, 75]);
 }
 
-function makeWoodTexture() {
-  const textureCanvas = document.createElement("canvas");
-  textureCanvas.width = 512;
-  textureCanvas.height = 1024;
-  const wood = textureCanvas.getContext("2d");
-  const base = wood.createLinearGradient(0, 0, 512, 0);
-  base.addColorStop(0, "#7a431f");
-  base.addColorStop(.24, "#a86732");
-  base.addColorStop(.53, "#8b4d25");
-  base.addColorStop(.78, "#b17038");
-  base.addColorStop(1, "#74401f");
-  wood.fillStyle = base;
-  wood.fillRect(0, 0, 512, 1024);
+function pastelMaterial(color, options = {}) {
+  const tint = new THREE.Color(color);
+  return new THREE.MeshStandardMaterial({
+    color: tint,
+    emissive: tint.clone().multiplyScalar(.075),
+    emissiveIntensity: 1,
+    roughness: options.roughness ?? .86,
+    metalness: options.metalness ?? 0,
+    flatShading: options.flatShading ?? true,
+    side: THREE.DoubleSide,
+    vertexColors: options.vertexColors ?? false
+  });
+}
 
-  const random = (() => {
-    let state = 0x51a7f00d;
-    return () => {
-      state = Math.imul(state ^ (state >>> 15), state | 1);
-      return ((state ^ (state >>> 13)) >>> 0) / 4294967296;
-    };
-  })();
-  for (let index = 0; index < 180; index += 1) {
-    const x = random() * 512;
-    const width = .35 + random() * 2.2;
-    const bend = (random() - .5) * 75;
-    wood.beginPath();
-    wood.moveTo(x, -10);
-    wood.bezierCurveTo(x + bend, 270, x - bend * .7, 730, x + bend * .35, 1034);
-    wood.strokeStyle = index % 4 === 0 ? `rgba(52,24,10,${.07 + random() * .08})` : `rgba(255,210,143,${.025 + random() * .045})`;
-    wood.lineWidth = width;
-    wood.stroke();
+function addAmbientShadow() {
+  const material = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    uniforms: { shadowColor: { value: new THREE.Color(0x5b8f96) } },
+    vertexShader: "varying vec2 vUv; void main(){vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
+    fragmentShader: "varying vec2 vUv; uniform vec3 shadowColor; void main(){vec2 p=(vUv-.5)*vec2(1.0,1.22); float a=(1.0-smoothstep(.12,.52,length(p)))*.2; gl_FragColor=vec4(shadowColor,a);}"
+  });
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(650, 870), material);
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = -67;
+  app.scene.add(shadow);
+}
+
+function addSkyFragments() {
+  const cloudMaterial = pastelMaterial(0xf3fff8, { roughness: 1 });
+  const fragmentMaterial = pastelMaterial(0xa5bddb, { roughness: .95 });
+  const fragments = [
+    [-380, -74, -250, 30], [390, -94, 80, 38], [-320, -115, 340, 23], [330, -60, -390, 18]
+  ];
+  for (const [x, y, z, size] of fragments) {
+    const fragment = new THREE.Mesh(new THREE.OctahedronGeometry(size, 0), fragmentMaterial);
+    fragment.position.set(x, y, z);
+    fragment.rotation.set(.2, x * .004, .12);
+    app.scene.add(fragment);
   }
-  for (let index = 0; index < 14; index += 1) {
-    const x = random() * 512;
-    const y = random() * 1024;
-    wood.strokeStyle = "rgba(55,25,10,.17)";
-    wood.lineWidth = 1.4;
-    wood.beginPath();
-    wood.ellipse(x, y, 12 + random() * 30, 4 + random() * 8, random() * .25, 0, Math.PI * 2);
-    wood.stroke();
+  for (const [x, y, z, scale] of [[-420,95,-80,1.2],[390,130,260,.85],[-260,170,420,.65]]) {
+    const cloud = new THREE.Group();
+    for (const offset of [[-18,0,0,22],[8,5,0,28],[30,-2,0,18]]) {
+      const puff = new THREE.Mesh(new THREE.IcosahedronGeometry(offset[3], 1), cloudMaterial);
+      puff.position.set(offset[0], offset[1], offset[2]);
+      cloud.add(puff);
+    }
+    cloud.position.set(x, y, z);
+    cloud.scale.setScalar(scale);
+    app.scene.add(cloud);
   }
-  const texture = new THREE.CanvasTexture(textureCanvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = Math.min(8, app.renderer.capabilities.getMaxAnisotropy());
-  return texture;
 }
 
 function initialize3D() {
-  app.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+  app.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
   app.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.8));
   app.renderer.shadowMap.enabled = true;
   app.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   app.renderer.outputColorSpace = THREE.SRGBColorSpace;
   app.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  app.renderer.toneMappingExposure = 1.04;
+  app.renderer.toneMappingExposure = 1.08;
+  app.renderer.setClearColor(0xd9f2ec, 1);
 
   app.scene = new THREE.Scene();
-  app.scene.background = new THREE.Color(0x171009);
-  app.camera = new THREE.PerspectiveCamera(38, 1, 1, 2200);
-  app.camera.position.set(0, 810, 650);
-  app.camera.lookAt(0, 0, -8);
+  app.scene.background = new THREE.Color(0xd9f2ec);
+  app.scene.fog = new THREE.Fog(0xd9f2ec, 760, 1550);
+  app.camera = new THREE.OrthographicCamera(-250, 250, 410, -410, 1, 2400);
+  app.camera.position.set(180, 760, 650);
+  app.camera.lookAt(0, -8, 0);
 
-  app.scene.add(new THREE.HemisphereLight(0xffe4ba, 0x1b100a, 1.65));
-  app.keyLight = new THREE.DirectionalLight(0xffe0ae, 3.7);
-  app.keyLight.position.set(-240, 430, 210);
+  app.scene.add(new THREE.AmbientLight(0xffffff, 1.25));
+  app.scene.add(new THREE.HemisphereLight(0xf4fff8, 0x91a9c6, 2.35));
+  app.keyLight = new THREE.DirectionalLight(0xfff0d5, 3.25);
+  app.keyLight.position.set(-360, 620, 260);
   app.keyLight.castShadow = true;
-  app.keyLight.shadow.mapSize.set(1024, 1024);
-  app.keyLight.shadow.camera.left = -280;
-  app.keyLight.shadow.camera.right = 280;
-  app.keyLight.shadow.camera.top = 380;
-  app.keyLight.shadow.camera.bottom = -380;
+  app.keyLight.shadow.mapSize.set(1536, 1536);
+  app.keyLight.shadow.bias = -.00018;
+  app.keyLight.shadow.normalBias = .055;
+  app.keyLight.shadow.camera.left = -410;
+  app.keyLight.shadow.camera.right = 410;
+  app.keyLight.shadow.camera.top = 470;
+  app.keyLight.shadow.camera.bottom = -470;
   app.scene.add(app.keyLight);
-  const rim = new THREE.DirectionalLight(0x9fc8d2, 1.2);
-  rim.position.set(260, 170, -420);
-  app.scene.add(rim);
+  const fill = new THREE.DirectionalLight(0xa7cfff, 1.4);
+  fill.position.set(420, 260, -460);
+  app.scene.add(fill);
+  const coralRim = new THREE.DirectionalLight(0xffb7a4, .8);
+  coralRim.position.set(-260, 120, -500);
+  app.scene.add(coralRim);
 
-  const table = new THREE.Mesh(
-    new THREE.PlaneGeometry(1600, 1600),
-    new THREE.MeshStandardMaterial({ color: 0x160d08, roughness: .94 })
-  );
-  table.rotation.x = -Math.PI / 2;
-  table.position.y = -35;
-  table.receiveShadow = true;
-  app.scene.add(table);
-
-  const woodTexture = makeWoodTexture();
   app.materials = {
-    board: new THREE.MeshStandardMaterial({ map: woodTexture, color: 0xb8753d, roughness: .68, metalness: 0 }),
-    wall: new THREE.MeshStandardMaterial({ map: woodTexture, color: 0x8e532d, roughness: .6, metalness: 0 }),
-    frame: new THREE.MeshStandardMaterial({ map: woodTexture, color: 0x6e381c, roughness: .55, metalness: 0 }),
-    dark: new THREE.MeshStandardMaterial({ color: 0x090706, roughness: .92 }),
-    brass: new THREE.MeshStandardMaterial({ color: 0xb8863d, roughness: .3, metalness: .78 }),
-    steel: new THREE.MeshPhysicalMaterial({ color: 0xdde2e2, metalness: 1, roughness: .12, clearcoat: 1, clearcoatRoughness: .08 }),
-    ink: new THREE.MeshBasicMaterial({ color: 0x3d2414, transparent: true, opacity: .72, depthWrite: false })
+    board: pastelMaterial(0xfff4d6),
+    wall: pastelMaterial(0xffffff, { vertexColors: true }),
+    frame: pastelMaterial(0xef917c),
+    under: pastelMaterial(0x9ca9d8),
+    dark: pastelMaterial(0x64aaa7),
+    brass: pastelMaterial(0xf2c66d, { roughness: .58 }),
+    mint: pastelMaterial(0x8fd5c7),
+    foliage: pastelMaterial(0x69b99b),
+    orb: new THREE.MeshPhysicalMaterial({ color: 0xff8f7b, emissive: 0x2a0906, emissiveIntensity: .08, metalness: .08, roughness: .24, clearcoat: 1, clearcoatRoughness: .14, flatShading: true, side: THREE.DoubleSide }),
+    ink: new THREE.MeshBasicMaterial({ color: 0x385b6b, transparent: true, opacity: .75, depthWrite: false, side: THREE.DoubleSide })
   };
+  addAmbientShadow();
+  addSkyFragments();
   rebuildBoard();
   resizeRenderer();
 }
@@ -525,15 +547,15 @@ function makeNumberMarker(number, x, z) {
   markerCanvas.width = 96;
   markerCanvas.height = 96;
   const marker = markerCanvas.getContext("2d");
-  marker.fillStyle = "rgba(244,222,180,.82)";
+  marker.fillStyle = "rgba(255,249,224,.9)";
   marker.beginPath();
   marker.arc(48, 48, 26, 0, Math.PI * 2);
   marker.fill();
-  marker.strokeStyle = "rgba(72,40,19,.75)";
-  marker.lineWidth = 5;
+  marker.strokeStyle = "rgba(232,126,111,.82)";
+  marker.lineWidth = 4;
   marker.stroke();
-  marker.fillStyle = "#3d2414";
-  marker.font = "bold 38px Georgia";
+  marker.fillStyle = "#3f6574";
+  marker.font = "bold 36px Avenir";
   marker.textAlign = "center";
   marker.textBaseline = "middle";
   marker.fillText(String(number), 48, 50);
@@ -566,20 +588,22 @@ function rebuildBoard() {
   app.scene.add(board);
   app.board = board;
 
-  board.add(box(WORLD.width + 48, 18, WORLD.height + 48, app.materials.frame, 0, -13, 0));
-  board.add(box(WORLD.width + 12, 7, WORLD.height + 12, app.materials.board, 0, -3.5, 0));
-  const railHeight = 30;
-  const railWidth = 19;
-  board.add(box(WORLD.width + 48, railHeight, railWidth, app.materials.frame, 0, 4, -WORLD.height / 2 - 15));
-  board.add(box(WORLD.width + 48, railHeight, railWidth, app.materials.frame, 0, 4, WORLD.height / 2 + 15));
-  board.add(box(railWidth, railHeight, WORLD.height + 30, app.materials.frame, -WORLD.width / 2 - 15, 4, 0));
-  board.add(box(railWidth, railHeight, WORLD.height + 30, app.materials.frame, WORLD.width / 2 + 15, 4, 0));
+  board.add(box(WORLD.width + 82, 25, WORLD.height + 82, app.materials.under, 0, -29, 0));
+  board.add(box(WORLD.width + 48, 19, WORLD.height + 48, app.materials.frame, 0, -15, 0));
+  board.add(box(WORLD.width + 12, 8, WORLD.height + 12, app.materials.board, 0, -4, 0));
+  const railHeight = 25;
+  const railWidth = 15;
+  board.add(box(WORLD.width + 42, railHeight, railWidth, app.materials.mint, 0, 4, -WORLD.height / 2 - 12));
+  board.add(box(WORLD.width + 42, railHeight, railWidth, app.materials.mint, 0, 4, WORLD.height / 2 + 12));
+  board.add(box(railWidth, railHeight, WORLD.height + 26, app.materials.frame, -WORLD.width / 2 - 12, 4, 0));
+  board.add(box(railWidth, railHeight, WORLD.height + 26, app.materials.frame, WORLD.width / 2 + 12, 4, 0));
 
   const wallGeometry = new THREE.BoxGeometry(1, 1, 1);
   const wallInstances = new THREE.InstancedMesh(wallGeometry, app.materials.wall, app.maze.walls.length);
   wallInstances.castShadow = true;
   wallInstances.receiveShadow = true;
   const matrix = new THREE.Matrix4();
+  const wallPalette = [0xfaf5d8, 0xb8dcd2, 0xd2c6e6, 0xf1b09b];
   app.maze.walls.forEach((wall, index) => {
     const position = worldPosition(wall.x + wall.width / 2, wall.y + wall.height / 2);
     matrix.compose(
@@ -588,29 +612,39 @@ function rebuildBoard() {
       new THREE.Vector3(wall.width, 17, wall.height)
     );
     wallInstances.setMatrixAt(index, matrix);
+    wallInstances.setColorAt(index, new THREE.Color(wallPalette[(index + Math.floor(wall.y / 55)) % wallPalette.length]));
   });
   wallInstances.instanceMatrix.needsUpdate = true;
+  if (wallInstances.instanceColor) wallInstances.instanceColor.needsUpdate = true;
   board.add(wallInstances);
 
-  const screwGeometry = new THREE.CylinderGeometry(3.2, 3.2, 1.5, 20);
-  for (const [x, z] of [[-190,-320],[190,-320],[-190,320],[190,320]]) {
-    const screw = new THREE.Mesh(screwGeometry, app.materials.brass);
-    screw.position.set(x, 5.5, z);
-    screw.castShadow = true;
-    board.add(screw);
+  const pillarGeometry = new THREE.CylinderGeometry(8, 12, 38, 6);
+  const crownGeometry = new THREE.ConeGeometry(16, 30, 6);
+  for (const [x, z, scale] of [[-202,-278,1],[203,-116,.82],[-202,212,.74],[203,286,1.08]]) {
+    const pillar = new THREE.Mesh(pillarGeometry, app.materials.brass);
+    pillar.position.set(x, -1, z);
+    pillar.scale.setScalar(scale);
+    pillar.castShadow = true;
+    board.add(pillar);
+    const crown = new THREE.Mesh(crownGeometry, app.materials.foliage);
+    crown.position.set(x, 28 * scale, z);
+    crown.rotation.y = x * .01;
+    crown.scale.setScalar(scale);
+    crown.castShadow = true;
+    board.add(crown);
   }
 
   for (const hazard of app.maze.hazards) {
     const position = worldPosition(hazard.x, hazard.y);
     const well = new THREE.Mesh(
-      new THREE.CylinderGeometry(hazard.radius, hazard.radius * .82, 8, 36),
+      new THREE.CylinderGeometry(hazard.radius, hazard.radius * .78, 9, 12),
       app.materials.dark
     );
     well.position.set(position.x, -3.8, position.z);
     well.receiveShadow = true;
     board.add(well);
     const lip = new THREE.Mesh(
-      new THREE.TorusGeometry(hazard.radius + .8, 1.35, 8, 36),
+      new THREE.TorusGeometry(hazard.radius + .8, 1.35, 5, 18),
       app.materials.frame
     );
     lip.rotation.x = Math.PI / 2;
@@ -645,24 +679,23 @@ function rebuildBoard() {
   const start = worldPosition(app.maze.start.x, app.maze.start.y);
   const startRing = new THREE.Mesh(
     new THREE.RingGeometry(13, 16, 40),
-    new THREE.MeshStandardMaterial({ color: 0x6c8a61, roughness: .5, metalness: .25, side: THREE.DoubleSide })
+    app.materials.mint
   );
   startRing.rotation.x = -Math.PI / 2;
   startRing.position.set(start.x, .55, start.z);
-  startRing.userData.disposableMaterial = true;
   board.add(startRing);
 
   const goal = worldPosition(app.maze.goal.x, app.maze.goal.y);
-  const goalWell = new THREE.Mesh(new THREE.CylinderGeometry(13, 11, 8, 36), app.materials.dark);
+  const goalWell = new THREE.Mesh(new THREE.CylinderGeometry(13, 11, 8, 12), app.materials.dark);
   goalWell.position.set(goal.x, -3.8, goal.z);
   board.add(goalWell);
-  const goalRing = new THREE.Mesh(new THREE.TorusGeometry(14.2, 2.1, 10, 40), app.materials.brass);
+  const goalRing = new THREE.Mesh(new THREE.TorusGeometry(14.2, 2.1, 6, 20), app.materials.brass);
   goalRing.rotation.x = Math.PI / 2;
   goalRing.position.set(goal.x, .35, goal.z);
   goalRing.castShadow = true;
   board.add(goalRing);
 
-  app.ballMesh = new THREE.Mesh(new THREE.SphereGeometry(BALL_RADIUS, 32, 22), app.materials.steel);
+  app.ballMesh = new THREE.Mesh(new THREE.IcosahedronGeometry(BALL_RADIUS, 2), app.materials.orb);
   app.ballMesh.castShadow = true;
   app.ballMesh.receiveShadow = true;
   board.add(app.ballMesh);
@@ -679,14 +712,16 @@ function rebuildBoard() {
 
 const rollAxis = new THREE.Vector3();
 const rollQuaternion = new THREE.Quaternion();
+const cameraDestination = new THREE.Vector3();
+const cameraLook = new THREE.Vector3();
 function updateBallMesh(dt, now) {
   if (!app.ballMesh) return;
   const position = worldPosition(app.ball.x, app.ball.y);
   let height = BALL_RADIUS + .8 + app.ball.airHeight;
   if (app.mode === "falling") {
     const progress = clamp(1 - (app.fallUntil - now) / 760, 0, 1);
-    height -= progress * 30;
-    app.ballMesh.scale.setScalar(1 - progress * .18);
+    height = BALL_RADIUS + .8 + app.fallStartHeight - progress * (app.fallStartHeight + 72);
+    app.ballMesh.scale.setScalar(1 - progress * .32);
   }
   app.ballMesh.position.set(position.x, height, position.z);
   const speed = Math.hypot(app.ball.vx, app.ball.vy);
@@ -704,11 +739,21 @@ function lerpAngle(current, target, amount) {
 
 function updateScene(dt, now, gravity) {
   if (!app.board) return;
-  const follow = Math.min(1, dt * 9);
-  app.board.rotation.x = lerpAngle(app.board.rotation.x, gravity.viewPitch, follow);
-  app.board.rotation.z = lerpAngle(app.board.rotation.z, -gravity.viewRoll, follow);
-  app.keyLight.position.x = -240 - gravity.x * 260;
-  app.keyLight.position.z = 210 - gravity.y * 260;
+  const follow = 1 - Math.exp(-dt * 4.8);
+  cameraDestination.set(
+    180 + gravity.x * 110,
+    760 + (1 - Math.max(0, gravity.z)) * 55,
+    650 + gravity.y * 120
+  );
+  app.camera.position.lerp(cameraDestination, follow);
+  cameraLook.set(gravity.x * 28, -10, gravity.y * 38);
+  app.camera.lookAt(cameraLook);
+  const zoomTarget = 1 - Math.min(1, Math.hypot(gravity.x, gravity.y)) * .12;
+  app.camera.zoom += (zoomTarget - app.camera.zoom) * follow;
+  app.camera.updateProjectionMatrix();
+  app.board.rotation.x = lerpAngle(app.board.rotation.x, 0, follow);
+  app.board.rotation.z = lerpAngle(app.board.rotation.z, 0, follow);
+  app.board.rotation.y = lerpAngle(app.board.rotation.y, gravity.x * .075, follow);
   updateBallMesh(dt, now);
 }
 
@@ -716,7 +761,12 @@ function resizeRenderer() {
   if (!app.renderer) return;
   const rect = frame.getBoundingClientRect();
   app.renderer.setSize(Math.max(1, rect.width), Math.max(1, rect.height), false);
-  app.camera.aspect = Math.max(.45, rect.width / Math.max(1, rect.height));
+  const aspect = Math.max(.45, rect.width / Math.max(1, rect.height));
+  const viewHeight = 1080;
+  app.camera.left = -viewHeight * aspect / 2;
+  app.camera.right = viewHeight * aspect / 2;
+  app.camera.top = viewHeight / 2;
+  app.camera.bottom = -viewHeight / 2;
   app.camera.updateProjectionMatrix();
 }
 
@@ -730,10 +780,7 @@ function animationFrame(now) {
 
 function pointerDown(event) {
   if (app.mode !== "playing") return;
-  if (app.touch.active && event.pointerId !== app.touch.pointerId) {
-    requestJump(7);
-    return;
-  }
+  if (app.touch.active) return;
   frame.setPointerCapture(event.pointerId);
   const rect = frame.getBoundingClientRect();
   Object.assign(app.touch, {
@@ -810,7 +857,7 @@ async function requestWakeLock() {
 
 function toggleSound() {
   app.soundEnabled = !app.soundEnabled;
-  ui.soundButton.textContent = app.soundEnabled ? "◉" : "○";
+  ui.soundButton.textContent = app.soundEnabled ? "♪" : "×";
   showToast(app.soundEnabled ? "Sound on" : "Sound off");
   if (app.soundEnabled) primeAudio();
 }
@@ -833,11 +880,6 @@ window.addEventListener("beforeinstallprompt", (event) => {
 });
 window.addEventListener("appinstalled", () => { ui.installButton.hidden = true; });
 window.addEventListener("keydown", (event) => {
-  if (event.code === "Space") {
-    event.preventDefault();
-    requestJump(7);
-    return;
-  }
   if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "KeyW", "KeyA", "KeyS", "KeyD"].includes(event.code)) {
     event.preventDefault();
     app.keys.add(event.code);

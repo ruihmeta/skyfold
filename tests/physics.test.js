@@ -9,8 +9,8 @@ import {
   holeCaptureRadius,
   resolveCircleRect,
   seededRandom,
-  stepAir,
-  stepBall
+  stepBall,
+  stepVerticalPhysics
 } from "../physics.js";
 
 test("seeded random is deterministic", () => {
@@ -114,22 +114,38 @@ test("physics accelerates toward input and remains finite against maze walls", (
   assert.ok(Math.hypot(ball.vx, ball.vy) < 4000);
 });
 
-test("air motion follows a ballistic arc and lands", () => {
-  const ball = { airHeight: .1, verticalVelocity: 500 };
-  assert.equal(stepAir(ball, 1 / 120), false);
-  assert.ok(ball.airHeight > .1);
+test("vertical surface acceleration naturally creates and lands an arc", () => {
+  const ball = { airHeight: 0, verticalVelocity: 0 };
+  const pressed = stepVerticalPhysics(ball, 1, 8, 1 / 120);
+  assert.equal(pressed.airborne, false);
+  let lifted = false;
+  for (let index = 0; index < 12; index += 1) {
+    const state = stepVerticalPhysics(ball, 1, -16, 1 / 120);
+    lifted = lifted || state.liftOff;
+  }
+  assert.equal(lifted, true);
+  assert.ok(ball.airHeight > 0);
   let landed = false;
-  for (let index = 0; index < 240; index += 1) landed = stepAir(ball, 1 / 120) || landed;
+  for (let index = 0; index < 240; index += 1) {
+    landed = stepVerticalPhysics(ball, 1, 0, 1 / 120).landed || landed;
+  }
   assert.equal(landed, true);
   assert.equal(ball.airHeight, 0);
   assert.equal(ball.verticalVelocity, 0);
 });
 
-test("airborne planar motion has no slope acceleration or rolling resistance", () => {
+test("airborne planar motion uses projectile gravity without rolling resistance", () => {
   const ball = { x: 100, y: 100, vx: 180, vy: -40 };
   stepBall(ball, { x: 1, y: 1, z: .5 }, [], .1, BALL_RADIUS, false);
-  assert.equal(ball.vx, 180);
-  assert.equal(ball.vy, -40);
-  assert.equal(ball.x, 118);
-  assert.equal(ball.y, 96);
+  assert.ok(ball.vx > 180);
+  assert.ok(ball.vy > -40);
+  assert.ok(ball.x > 118);
+  assert.ok(ball.y > 96);
+});
+
+test("an inverted board releases the ball through the same contact equation", () => {
+  const ball = { airHeight: 0, verticalVelocity: 0 };
+  const state = stepVerticalPhysics(ball, -1, 0, 1 / 120);
+  assert.equal(state.liftOff, true);
+  assert.ok(ball.airHeight > 0);
 });

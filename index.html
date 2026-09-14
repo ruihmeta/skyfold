@@ -3,60 +3,56 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-  <meta name="theme-color" content="#2a180e">
+  <meta name="theme-color" content="#d9f2ec">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="TILT//LAB">
-  <meta name="description" content="Tilt a classic wooden labyrinth and guide a steel ball past real route hazards.">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Skyfold">
+  <meta name="description" content="A pastel low-poly labyrinth shaped by gravity, perspective, and motion.">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icon.svg">
   <link rel="stylesheet" href="./styles.css">
-  <title>TILT//LAB</title>
+  <title>Skyfold</title>
 </head>
 <body>
   <main class="app-shell">
     <header class="topbar">
-      <div class="brand" aria-label="Tilt Lab">
-        <span class="brand-mark" aria-hidden="true"></span>
-        <div>
-          <strong>TILT<span>//</span>LAB</strong>
-          <small>WOOD &amp; STEEL LABYRINTH</small>
-        </div>
-      </div>
+      <a class="brand" href="./" aria-label="Skyfold home">
+        <span class="brand-mark" aria-hidden="true"><i></i></span>
+        <span><strong>SKYFOLD</strong><small>A POCKET GRAVITY STUDY</small></span>
+      </a>
       <div class="top-actions">
-        <button id="soundButton" class="icon-button" aria-label="Toggle sound" title="Toggle sound">◉</button>
-        <button id="installButton" class="compact-button" hidden>INSTALL</button>
+        <button id="soundButton" class="round-button" aria-label="Toggle sound" title="Toggle sound">♪</button>
+        <button id="installButton" class="install-button" hidden>KEEP</button>
       </div>
     </header>
 
-    <section class="status-row" aria-label="Game status">
-      <div><small>TIME</small><strong id="timer">00:00.0</strong></div>
-      <div class="status-center"><span id="sensorDot" class="status-dot"></span><strong id="sensorStatus">WAITING</strong></div>
-      <div><small>BOARD</small><strong id="levelLabel">01</strong></div>
-    </section>
-
     <section id="gameFrame" class="game-frame">
-      <canvas id="gameCanvas" aria-label="Tilt-controlled marble maze"></canvas>
-      <div class="scanlines" aria-hidden="true"></div>
+      <canvas id="gameCanvas" aria-label="Tilt-controlled low-poly sky labyrinth"></canvas>
+      <section class="status-row" aria-label="Game status">
+        <div><small>TIME</small><strong id="timer">00:00.0</strong></div>
+        <div class="status-center"><span id="sensorDot" class="status-dot"></span><strong id="sensorStatus">STILL</strong></div>
+        <div><small>PATH</small><strong id="levelLabel">01</strong></div>
+      </section>
 
       <div id="startPanel" class="modal-panel active" role="dialog" aria-modal="true" aria-labelledby="startTitle">
-        <div class="gyro-glyph" aria-hidden="true"><i></i><i></i><b></b></div>
-        <p class="eyebrow">A CLASSIC TILT LABYRINTH</p>
-        <h1 id="startTitle">Lay it flat.<br>Then tilt gently.</h1>
-        <p>Horizontal is true zero. Tilt for a full 3D view, and lift the phone sharply to jump the steel ball across the dark floor gaps.</p>
-        <button id="startButton" class="primary-button">ENABLE MOTION &amp; PLAY</button>
-        <button id="touchButton" class="text-button">USE TOUCH CONTROLS</button>
-        <small class="permission-note">Place the phone flat before starting. On iPhone, Safari asks for motion access after you tap.</small>
+        <div class="sky-glyph" aria-hidden="true"><span></span><i></i><b></b></div>
+        <p class="eyebrow">AN ORBITAL LABYRINTH</p>
+        <h1 id="startTitle">Find balance<br>in the sky.</h1>
+        <p>Lay the phone flat, then tilt to shape gravity. A quick lift followed by a stop lets the orb leave the surface naturally.</p>
+        <button id="startButton" class="primary-button">ENTER WITH MOTION</button>
+        <button id="touchButton" class="text-button">EXPLORE WITH TOUCH</button>
+        <small class="permission-note">Safari will ask for motion access. No sensor data leaves this device.</small>
       </div>
 
       <div id="winPanel" class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="winTitle">
-        <p class="eyebrow">BALL SECURED</p>
-        <h2 id="winTitle">Board cleared</h2>
+        <div class="sky-glyph complete" aria-hidden="true"><span></span><i></i><b></b></div>
+        <p class="eyebrow">PATH ALIGNED</p>
+        <h2 id="winTitle">The orbit is whole.</h2>
         <div class="result-time" id="resultTime">00:00.0</div>
-        <p id="resultCopy">The full numbered route is complete.</p>
-        <button id="nextButton" class="primary-button">NEXT BOARD</button>
-        <button id="retryButton" class="text-button">REPLAY THIS ONE</button>
+        <p id="resultCopy">A quiet passage through the sky.</p>
+        <button id="nextButton" class="primary-button">UNFOLD A NEW PATH</button>
+        <button id="retryButton" class="text-button">WALK THIS PATH AGAIN</button>
       </div>
 
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
@@ -64,15 +60,12 @@
     </section>
 
     <footer class="control-deck">
-      <button id="calibrateButton" class="deck-button"><span>⌖</span><b>SET LEVEL</b><small>Optional zero</small></button>
-      <div class="tilt-meter" aria-label="Current tilt">
-        <span id="tiltMarker"></span>
-        <i></i><i></i>
-      </div>
-      <button id="resetButton" class="deck-button"><span>↺</span><b>RESTART</b><small>Same board</small></button>
+      <button id="calibrateButton" class="deck-button"><span>◇</span><b>SET HORIZON</b><small>Use this angle as level</small></button>
+      <div class="tilt-meter" aria-label="Current tilt"><span id="tiltMarker"></span><i></i><i></i></div>
+      <button id="resetButton" class="deck-button right"><span>↻</span><b>BEGIN AGAIN</b><small>Keep this path</small></button>
     </footer>
 
-    <p class="desktop-hint">FULL-AXIS TILT · LIFT FAST TO JUMP · TWO-FINGER TAP / SPACE</p>
+    <p class="desktop-hint">TILT TO FLOW · LIFT THEN STOP TO LEAVE THE SURFACE</p>
   </main>
   <script type="module" src="./app.js"></script>
 </body>
