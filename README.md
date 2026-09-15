@@ -11,6 +11,8 @@ npm run serve
 
 Open `http://localhost:4173`. Drag or use arrow keys for planar desktop input. Full vertical motion requires a sensor-equipped phone over HTTPS; iOS Safari requests orientation and motion permission after **Enter with motion**.
 
+If motion permission was denied, use the in-game **Retry Motion** control after changing the browser or OS permission. Tap **Jump** (or press Space on desktop) for an explicit vertical impulse; physical lift-and-stop motion continues to use the continuous contact model.
+
 ## Rendering and physics
 
 - Original procedural wood grain, a classic raised maze, brass details, recessed hazards, and a reflective steel ball.

@@ -19,7 +19,7 @@
     <header class="topbar">
       <a class="brand" href="./" aria-label="Skyfold home">
         <span class="brand-mark" aria-hidden="true"><i></i></span>
-        <span><strong>SKYFOLD</strong><small>A POCKET GRAVITY STUDY</small></span>
+        <span><strong>SKYFOLD</strong><small>WOOD &amp; STEEL LABYRINTH</small></span>
       </a>
       <div class="top-actions">
         <button id="soundButton" class="round-button" aria-label="Toggle sound" title="Toggle sound">♪</button>
@@ -28,12 +28,14 @@
     </header>
 
     <section id="gameFrame" class="game-frame">
-      <canvas id="gameCanvas" aria-label="Tilt-controlled low-poly sky labyrinth"></canvas>
+      <canvas id="gameCanvas" aria-label="Tilt-controlled wooden steel-ball labyrinth"></canvas>
       <section class="status-row" aria-label="Game status">
         <div><small>TIME</small><strong id="timer">00:00.0</strong></div>
         <div class="status-center"><span id="sensorDot" class="status-dot"></span><strong id="sensorStatus">STILL</strong></div>
         <div><small>PATH</small><strong id="levelLabel">01</strong></div>
       </section>
+      <button id="motionButton" class="motion-button" hidden>RETRY MOTION</button>
+      <button id="jumpButton" class="jump-button" aria-label="Jump the steel ball"><span>↑</span>JUMP</button>
 
       <div id="startPanel" class="modal-panel active" role="dialog" aria-modal="true" aria-labelledby="startTitle">
         <div class="sky-glyph" aria-hidden="true"><span></span><i></i><b></b></div>
@@ -42,7 +44,7 @@
         <p>Lay the phone flat, then tilt the wooden board. A quick lift followed by a stop lets the steel ball leave the surface naturally.</p>
         <button id="startButton" class="primary-button">ENTER WITH MOTION</button>
         <button id="touchButton" class="text-button">EXPLORE WITH TOUCH</button>
-        <small class="permission-note">Safari will ask for motion access. No sensor data leaves this device.</small>
+        <small class="permission-note">If motion is blocked, change the browser setting and tap RETRY MOTION in the lower-left corner.</small>
       </div>
 
       <div id="winPanel" class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="winTitle">
@@ -50,7 +52,7 @@
         <p class="eyebrow">BALL SECURED</p>
         <h2 id="winTitle">The maze is yours.</h2>
         <div class="result-time" id="resultTime">00:00.0</div>
-        <p id="resultCopy">A quiet passage through the sky.</p>
+        <p id="resultCopy">A clean run through wood and steel.</p>
         <button id="nextButton" class="primary-button">UNFOLD A NEW PATH</button>
         <button id="retryButton" class="text-button">WALK THIS PATH AGAIN</button>
       </div>
@@ -65,7 +67,7 @@
       <button id="resetButton" class="deck-button right"><span>↻</span><b>BEGIN AGAIN</b><small>Keep this path</small></button>
     </footer>
 
-    <p class="desktop-hint">TILT TO FLOW · LIFT THEN STOP TO LEAVE THE SURFACE</p>
+    <p class="desktop-hint">TILT TO FLOW · LIFT + STOP OR TAP JUMP</p>
   </main>
   <script type="module" src="./app.js"></script>
 </body>

@@ -30,6 +30,8 @@ test("3D runtime dependencies and queried UI elements are present", async () => 
   assert.match(app, /vendor\/three\.module\.min\.js/);
   assert.doesNotMatch(app, /requestJump/);
   assert.match(app, /stepVerticalPhysics/);
+  assert.match(app, /requestMotionAccess/);
+  assert.match(app, /applyJumpImpulse/);
   const queriedIds = [...app.matchAll(/querySelector\("#([^"]+)"\)/g)].map((match) => match[1]);
   for (const id of queriedIds) assert.match(html, new RegExp(`id="${id}"`), `missing #${id}`);
 });

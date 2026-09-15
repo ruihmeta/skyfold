@@ -32,7 +32,9 @@ const ui = {
   nextButton: document.querySelector("#nextButton"),
   retryButton: document.querySelector("#retryButton"),
   soundButton: document.querySelector("#soundButton"),
-  installButton: document.querySelector("#installButton")
+  installButton: document.querySelector("#installButton"),
+  motionButton: document.querySelector("#motionButton"),
+  jumpButton: document.querySelector("#jumpButton")
 };
 
 const TOUCH_TILT = Math.sin(10 * Math.PI / 180);
@@ -58,6 +60,8 @@ const app = {
     motionBaseline: null,
     motionAt: 0,
     motionSeen: false,
+    orientationListening: false,
+    motionListening: false,
     seen: false
   },
   touch: { active: false, pointerId: null, originX: 0, originY: 0, x: 0, y: 0 },
@@ -149,8 +153,8 @@ function handleOrientation(event) {
 }
 
 function handleMotion(event) {
-  const direct = Number(event.acceleration?.z);
-  const includingGravity = Number(event.accelerationIncludingGravity?.z);
+  const direct = event.acceleration?.z == null ? Number.NaN : Number(event.acceleration.z);
+  const includingGravity = event.accelerationIncludingGravity?.z == null ? Number.NaN : Number(event.accelerationIncludingGravity.z);
   let z = direct;
   if (!Number.isFinite(z) && Number.isFinite(includingGravity)) {
     if (app.sensor.motionBaseline == null) app.sensor.motionBaseline = includingGravity;
@@ -163,10 +167,19 @@ function handleMotion(event) {
   app.sensor.motionSeen = true;
 }
 
-async function enableTilt() {
+function applyJumpImpulse() {
+  if (app.mode !== "playing" || app.ball.airHeight > .5) return;
+  app.ball.airHeight = .1;
+  app.ball.verticalVelocity = Math.max(app.ball.verticalVelocity, 520);
+  playTone(290, .055, "triangle", .026);
+  haptic(12);
+  showToast("JUMP");
+}
+
+async function requestMotionAccess(startGame) {
   primeAudio();
-  let orientationGranted = true;
-  let motionGranted = true;
+  let orientationGranted = "DeviceOrientationEvent" in window;
+  let motionGranted = "DeviceMotionEvent" in window;
   try {
     if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
       orientationGranted = (await DeviceOrientationEvent.requestPermission()) === "granted";
@@ -179,9 +192,15 @@ async function enableTilt() {
     motionGranted = false;
   }
 
-  if (orientationGranted && "DeviceOrientationEvent" in window) {
-    window.addEventListener("deviceorientation", handleOrientation, true);
-    if (motionGranted && "DeviceMotionEvent" in window) window.addEventListener("devicemotion", handleMotion, true);
+  if (orientationGranted) {
+    if (!app.sensor.orientationListening) {
+      window.addEventListener("deviceorientation", handleOrientation, true);
+      app.sensor.orientationListening = true;
+    }
+    if (motionGranted && !app.sensor.motionListening) {
+      window.addEventListener("devicemotion", handleMotion, true);
+      app.sensor.motionListening = true;
+    }
     setInputStatus("SET FLAT", "live");
     setTimeout(() => {
       if (!app.sensor.seen) {
@@ -191,14 +210,23 @@ async function enableTilt() {
     }, 1800);
   } else {
     setInputStatus("TOUCH READY", "touch");
-    showToast("Motion unavailable — drag to tilt", 2600);
+    showToast("Motion blocked — allow it in browser settings, then retry", 4200);
   }
-  beginGame();
+  ui.motionButton.hidden = false;
+  const fullyConnected = orientationGranted && motionGranted;
+  ui.motionButton.textContent = fullyConnected ? "MOTION ✓" : "RETRY MOTION";
+  ui.motionButton.classList.toggle("connected", fullyConnected);
+  if (!fullyConnected && orientationGranted) showToast("Tilt enabled · motion lift blocked · tap RETRY after changing settings", 4200);
+  if (startGame) beginGame();
 }
+
+function enableTilt() { requestMotionAccess(true); }
+function retryMotionAccess() { requestMotionAccess(false); }
 
 function beginTouchMode() {
   primeAudio();
   setInputStatus("TOUCH READY", "touch");
+  ui.motionButton.hidden = false;
   beginGame();
 }
 
@@ -427,11 +455,11 @@ function makeWoodTexture() {
   textureCanvas.height = 1024;
   const context = textureCanvas.getContext("2d");
   const base = context.createLinearGradient(0, 0, 512, 0);
-  base.addColorStop(0, "#b97b47");
-  base.addColorStop(.25, "#dda66d");
-  base.addColorStop(.52, "#c78a53");
-  base.addColorStop(.78, "#e4b477");
-  base.addColorStop(1, "#a96c3e");
+  base.addColorStop(0, "#7a431f");
+  base.addColorStop(.24, "#a86732");
+  base.addColorStop(.53, "#8b4d25");
+  base.addColorStop(.78, "#b17038");
+  base.addColorStop(1, "#74401f");
   context.fillStyle = base;
   context.fillRect(0, 0, 512, 1024);
   let state = 0x5f3759df;
@@ -445,14 +473,14 @@ function makeWoodTexture() {
     context.beginPath();
     context.moveTo(x, -20);
     context.bezierCurveTo(x + bend, 300, x - bend * .7, 700, x + bend * .25, 1044);
-    context.strokeStyle = index % 4 === 0 ? `rgba(78,39,19,${.06 + random() * .09})` : `rgba(255,235,193,${.025 + random() * .05})`;
+    context.strokeStyle = index % 4 === 0 ? `rgba(52,24,10,${.07 + random() * .08})` : `rgba(255,210,143,${.025 + random() * .045})`;
     context.lineWidth = .5 + random() * 2;
     context.stroke();
   }
   for (let index = 0; index < 12; index += 1) {
     context.beginPath();
     context.ellipse(random() * 512, random() * 1024, 12 + random() * 28, 4 + random() * 7, random() * .3, 0, Math.PI * 2);
-    context.strokeStyle = "rgba(80,39,18,.16)";
+    context.strokeStyle = "rgba(55,25,10,.17)";
     context.lineWidth = 1.4;
     context.stroke();
   }
@@ -470,11 +498,11 @@ function initialize3D() {
   app.renderer.outputColorSpace = THREE.SRGBColorSpace;
   app.renderer.toneMapping = THREE.ACESFilmicToneMapping;
   app.renderer.toneMappingExposure = 1.02;
-  app.renderer.setClearColor(0xeadfce, 1);
+  app.renderer.setClearColor(0x171009, 1);
 
   app.scene = new THREE.Scene();
-  app.scene.background = new THREE.Color(0xeadfce);
-  app.scene.fog = new THREE.Fog(0xeadfce, 1050, 1900);
+  app.scene.background = new THREE.Color(0x171009);
+  app.scene.fog = new THREE.Fog(0x171009, 1180, 2100);
   app.camera = new THREE.PerspectiveCamera(38, 1, 1, 2400);
   app.camera.position.set(0, 1080, 24);
   app.camera.up.set(0, 0, -1);
@@ -506,20 +534,20 @@ function initialize3D() {
     color,
     roughness,
     metalness: 0,
-    emissive: new THREE.Color(color).multiplyScalar(.035),
+    emissive: new THREE.Color(color).multiplyScalar(.045),
     emissiveIntensity: 1,
     side: THREE.DoubleSide
   });
   app.materials = {
-    board: woodMaterial(0xe4b47c, .72),
-    wall: woodMaterial(0xc1844f, .64),
-    frame: woodMaterial(0x8e542f, .58),
-    under: woodMaterial(0x95613f, .66),
-    dark: new THREE.MeshStandardMaterial({ color: 0x2d211b, emissive: 0x160e0a, emissiveIntensity: .18, roughness: .9, side: THREE.DoubleSide }),
-    brass: new THREE.MeshStandardMaterial({ color: 0xc99a4f, emissive: 0x2a1805, emissiveIntensity: .12, roughness: .28, metalness: .72, side: THREE.DoubleSide }),
+    board: woodMaterial(0xb8753d, .68),
+    wall: woodMaterial(0x8e532d, .6),
+    frame: woodMaterial(0x6e381c, .55),
+    under: woodMaterial(0x74401f, .64),
+    dark: new THREE.MeshStandardMaterial({ color: 0x090706, emissive: 0x090604, emissiveIntensity: .22, roughness: .92, side: THREE.DoubleSide }),
+    brass: new THREE.MeshStandardMaterial({ color: 0xb8863d, emissive: 0x2a1805, emissiveIntensity: .12, roughness: .3, metalness: .78, side: THREE.DoubleSide }),
     mint: new THREE.MeshStandardMaterial({ color: 0x6d8f6b, emissive: 0x102010, emissiveIntensity: .12, roughness: .6, side: THREE.DoubleSide }),
     foliage: woodMaterial(0x9b6037, .7),
-    orb: new THREE.MeshPhysicalMaterial({ color: 0xe9eeee, emissive: 0x111515, emissiveIntensity: .1, metalness: 1, roughness: .1, clearcoat: 1, clearcoatRoughness: .06, side: THREE.DoubleSide }),
+    orb: new THREE.MeshPhysicalMaterial({ color: 0xdde2e2, emissive: 0x101414, emissiveIntensity: .08, metalness: 1, roughness: .12, clearcoat: 1, clearcoatRoughness: .08, side: THREE.DoubleSide }),
     ink: new THREE.MeshBasicMaterial({ color: 0x493025, transparent: true, opacity: .78, depthWrite: false, side: THREE.DoubleSide })
   };
   rebuildBoard();
@@ -847,6 +875,11 @@ window.addEventListener("beforeinstallprompt", (event) => {
 });
 window.addEventListener("appinstalled", () => { ui.installButton.hidden = true; });
 window.addEventListener("keydown", (event) => {
+  if (event.code === "Space") {
+    event.preventDefault();
+    applyJumpImpulse();
+    return;
+  }
   if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "KeyW", "KeyA", "KeyS", "KeyD"].includes(event.code)) {
     event.preventDefault();
     app.keys.add(event.code);
@@ -869,6 +902,12 @@ ui.nextButton.addEventListener("click", () => resetRun({ newMaze: true }));
 ui.retryButton.addEventListener("click", () => resetRun());
 ui.soundButton.addEventListener("click", toggleSound);
 ui.installButton.addEventListener("click", installApp);
+ui.motionButton.addEventListener("click", retryMotionAccess);
+ui.jumpButton.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  applyJumpImpulse();
+});
 
 if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !window.matchMedia("(display-mode: standalone)").matches) {
   ui.installButton.hidden = false;

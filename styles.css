@@ -86,7 +86,7 @@ a { text-decoration: none; }
   overflow: hidden;
   border: 1px solid rgba(255,255,255,.72);
   border-radius: 30px;
-  background: linear-gradient(160deg, #f3eadc, #d9c6b0);
+  background: #1a1009;
   box-shadow: 0 26px 70px rgba(91,60,39,.18), inset 0 0 0 1px rgba(91,60,39,.06);
   touch-action: none;
 }
@@ -133,12 +133,12 @@ a { text-decoration: none; }
   backdrop-filter: blur(18px) saturate(.9);
 }
 .modal-panel.active { opacity: 1; visibility: visible; transform: translateY(0); }
-.modal-panel h1, .modal-panel h2 { margin: 10px 0 14px; color: #36586b; font-weight: 500; letter-spacing: -.055em; line-height: .94; }
+.modal-panel h1, .modal-panel h2 { margin: 10px 0 14px; color: #4a3022; font-weight: 500; letter-spacing: -.055em; line-height: .94; }
 .modal-panel h1 { font-size: clamp(38px, 11vw, 58px); }
 .modal-panel h2 { max-width: 360px; font-size: clamp(31px, 8vw, 45px); }
-.modal-panel p:not(.eyebrow) { max-width: 330px; margin: 0 0 24px; color: #69838d; font-size: 12px; line-height: 1.65; }
-.eyebrow { margin: 12px 0 0; color: #e47e70; font-size: 8px; font-weight: 800; letter-spacing: .25em; }
-.permission-note { max-width: 270px; margin-top: 13px; color: #8ca1a5; font-size: 8px; line-height: 1.5; }
+.modal-panel p:not(.eyebrow) { max-width: 330px; margin: 0 0 24px; color: #7b6656; font-size: 12px; line-height: 1.65; }
+.eyebrow { margin: 12px 0 0; color: #9a5b34; font-size: 8px; font-weight: 800; letter-spacing: .25em; }
+.permission-note { max-width: 285px; margin-top: 13px; color: #927e6d; font-size: 8px; line-height: 1.5; }
 
 .primary-button {
   width: min(100%, 286px);
@@ -158,9 +158,9 @@ a { text-decoration: none; }
 
 .sky-glyph { width: 86px; height: 72px; position: relative; margin-bottom: 7px; }
 .sky-glyph span, .sky-glyph i, .sky-glyph b { position: absolute; display: block; transform: rotate(30deg); clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }
-.sky-glyph span { width: 66px; height: 66px; left: 9px; top: 3px; background: #8fd5c7; box-shadow: 14px 15px 0 #77bcb8; animation: float 4s ease-in-out infinite; }
+.sky-glyph span { width: 66px; height: 66px; left: 9px; top: 3px; background: #a76840; box-shadow: 14px 15px 0 #754126; animation: float 4s ease-in-out infinite; }
 .sky-glyph i { width: 34px; height: 34px; left: 26px; top: 19px; background: #fff4d5; }
-.sky-glyph b { width: 11px; height: 11px; left: 38px; top: 30px; border-radius: 50%; background: #ef8d78; clip-path: none; }
+.sky-glyph b { width: 11px; height: 11px; left: 38px; top: 30px; border-radius: 50%; background: #dce3e4; box-shadow: inset -2px -2px 3px #697477; clip-path: none; }
 .sky-glyph.complete b { background: #f2c66d; box-shadow: 0 0 0 6px rgba(242,198,109,.22); }
 @keyframes float { 50% { transform: rotate(30deg) translateY(-5px); } }
 
@@ -169,6 +169,28 @@ a { text-decoration: none; }
 .joystick { position: absolute; z-index: 4; width: 80px; height: 80px; margin: -40px 0 0 -40px; border: 1px solid rgba(255,255,255,.65); border-radius: 50%; background: rgba(143,213,199,.22); box-shadow: inset 0 0 0 9px rgba(255,255,255,.12); opacity: 0; pointer-events: none; }
 .joystick.active { opacity: 1; }
 .joystick span { position: absolute; width: 28px; height: 28px; left: 25px; top: 25px; border-radius: 50%; background: #fff9e8; box-shadow: 0 7px 16px rgba(62,105,119,.2); }
+
+.motion-button, .jump-button {
+  position: absolute;
+  z-index: 5;
+  bottom: 16px;
+  min-height: 40px;
+  border: 1px solid rgba(255,232,194,.32);
+  border-radius: 99px;
+  color: #f7e9d2;
+  background: rgba(48,28,17,.8);
+  box-shadow: 0 8px 22px rgba(0,0,0,.24), inset 0 1px rgba(255,255,255,.08);
+  backdrop-filter: blur(10px);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+.motion-button { left: 16px; padding: 0 14px; }
+.motion-button.connected { color: #dbe6c5; border-color: rgba(170,204,134,.35); }
+.jump-button { right: 16px; width: 68px; display: grid; place-content: center; gap: 1px; }
+.jump-button span { display: block; color: #e7bd6c; font-size: 15px; line-height: .7; }
+.jump-button:active { transform: translateY(2px) scale(.97); }
+.motion-button[hidden] { display: none; }
 
 .control-deck {
   min-height: 58px;
